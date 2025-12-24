@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GGF Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Pastikan CSS terhubung dengan benar -->
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <img src="GGF_logo024_putih.png" alt="GGF Logo" class="ggf-icon" />
+      </div>
+      <div class="user-info">
+        <div class="avatar">
+          <img src="Pinalucu.png" alt="Character Avatar" class="avatar-img" />
+        </div>
+        <div class="user-details">
+          <p class="name">Admin User</p>
+          <p class="role">Administrator</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="cards">
+        <div class="card">
+          <div class="icon">📊</div>
+          <h3>Total Learning Hours</h3>
+          <p class="value">12,458</p>
+        </div>
+        <div class="card">
+          <div class="icon">👥</div>
+          <h3>Total Employees</h3>
+          <p class="value">1,247</p>
+        </div>
+      </div>
+
+      <!-- Data Filter Section -->
+      <div class="data-filter">
+        <div class="avatar">
+          <img src="Pinalucu.png" alt="Character Avatar" class="avatar-img" />
+        </div>
+        <div class="form-section">
+          <h2>Data Filtering</h2>
+          <div class="form-row">
+            <select>
+              <option>Select BU e.g., Bromelain Enzyme, GGP...</option>
+              <option>Bromelain Enzyme</option>
+              <option>GGP</option>
+              <option>Manufacturing</option>
+              <option>Operations</option>
+              <option>Corporate</option>
+            </select>
+            <select>
+              <option>Select Division e.g., Production, HRGA...</option>
+              <option>Production</option>
+              <option>HRGA</option>
+              <option>Finance</option>
+              <option>Sales</option>
+            </select>
+            <select>
+              <option>Select Training Type</option>
+              <option>Leadership</option>
+              <option>Technical</option>
+            </select>
+            <select>
+              <option>Select Method</option>
+              <option>Inclass</option>
+              <option>Hybrid</option>
+              <option>Webinar</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <input
+              type="text"
+              placeholder="Search or select training name..."
+            />
+          </div>
+          <div class="btn-group">
+            <button>Reset Filters</button>
+            <button>Apply Filter</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bokeh Background Effect -->
+    <div class="bokeh"></div>
+  </body>
+</html>
