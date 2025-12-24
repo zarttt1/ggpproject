@@ -16,7 +16,7 @@
 <div class="container">
     <div class="sidebar">
         <div class="logo">
-            <img alt="Logo" src="https://static.readdy.ai/image/cb30a5cdf1c776c36393009d4d155f31/343e2aacadea87bc32e4b56fcafc1264.png">
+            <img alt="Logo" src="GGF_logo024_putih.png">
         </div>
         <nav>
             <ul>
