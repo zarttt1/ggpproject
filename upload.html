@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GGF Upload</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <img src="GGF_logo024_putih.png" alt="GGF Logo" class="ggf-icon" />
+        <h1>GGF Dashboard</h1>
+      </div>
+      <div class="content-title">
+        <a href="index.html" class="title-link">Dashboard</a>
+        <a href="upload.html" class="title-link active">Upload</a>
+        <a href="report.php" class="title-link">Report</a>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="upload-container">
+      <div class="before-upload">
+        <p>Before you upload</p>
+        <p>
+          To ensure data accuracy, please use the standardized Excel template.
+          Do not change the column headers.
+        </p>
+      </div>
+      <div class="upload-section">
+        <div class="file-dropzone">
+          <div class="file-placeholder">
+            <p>Drag & drop your file here</p>
+            <button class="browse-btn">Browse File</button>
+          </div>
+          <input type="file" class="file-input" />
+          <p>Supported formats: XLSX, CSV (Data files)</p>
+        </div>
+      </div>
+
+      <!-- Recent Uploads Section -->
+      <div class="recent-uploads">
+        <h2>Recent Uploads</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date & Time</th>
+              <th>Filename</th>
+              <th>Uploaded By</th>
+              <th>Status</th>
+              <th>Rows Processed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>2024-08-18 15:20</td>
+              <td>Q1_Training_Data.xlsx</td>
+              <td>John Smith</td>
+              <td class="status success">Success</td>
+              <td>245</td>
+            </tr>
+            <tr>
+              <td>2024-08-19 08:15</td>
+              <td>December_Sessions.xlsx</td>
+              <td>Sarah Johnson</td>
+              <td class="status success">Success</td>
+              <td>180</td>
+            </tr>
+            <tr>
+              <td>2024-08-19 09:15</td>
+              <td>November_Report.xlsx</td>
+              <td>Michael Chen</td>
+              <td class="status failed">Failed</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>2024-08-19 10:15</td>
+              <td>October_Training.xlsx</td>
+              <td>Emily Davis</td>
+              <td class="status success">Success</td>
+              <td>312</td>
+            </tr>
+            <tr>
+              <td>2024-08-19 11:15</td>
+              <td>September_Data.xlsx</td>
+              <td>David Wilson</td>
+              <td class="status success">Success</td>
+              <td>272</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </body>
+</html>
