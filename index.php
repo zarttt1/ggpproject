@@ -1,117 +1,154 @@
-<?php
-// Jika diperlukan, bisa menambahkan logika PHP untuk autentikasi dan kontrol sesi di sini
-?>
-
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css"> <!-- Menghubungkan file CSS eksternal -->
+    <title>GGF Login</title>
+    <style>
+        /* 1. General Reset and Body Styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: #197B40;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .login-card {
+            background-color: #f3f4f7;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .logo-placeholder {
+            width: 150px;
+            height: auto;
+            margin-bottom: 30px;
+        }
+
+        h2 { color: #14674b; margin-bottom: 5px; font-size: 24px; }
+        p.subtitle { color: #666; font-size: 14px; margin-bottom: 30px; }
+
+        .form-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px; }
+        
+        input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ccc;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        /* 6. Multi-Color Animated Border Button */
+        .btn-signin {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: visible; 
+        }
+
+        .btn-signin span {
+            position: relative;
+            z-index: 2;
+        }
+
+        .btn-signin svg {
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: calc(100% + 4px); 
+            height: calc(100% + 4px);
+            fill: none;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        .btn-signin rect {
+            width: 100%;
+            height: 100%;
+            rx: 25px;
+            ry: 25px;
+            stroke: url(#multiColorGradient); 
+            stroke-width: 5;
+            stroke-dasharray: 120, 380; 
+            stroke-dashoffset: 0;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .btn-signin:hover rect {
+            opacity: 1;
+            animation: snakeMove 2s linear infinite;
+        }
+
+        @keyframes snakeMove {
+            from { stroke-dashoffset: 500; }
+            to { stroke-dashoffset: 0; }
+        }
+
+        .footer-text { font-size: 12px; color: #777; }
+        .footer-text a { color: #1a7f5d; text-decoration: none; font-weight: bold; }
+    </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="sidebar">
-        <div class="logo">
-            <img alt="Logo" src="GGF_logo024_putih.png">
-        </div>
-        <nav>
-            <ul>
-                <li><a href="/dashboard"><i class="ri-dashboard-line"></i><span>Dashboard</span></a></li>
-                <li><a href="/upload"><i class="ri-upload-cloud-line"></i><span>Upload</span></a></li>
-                <li><a href="/report"><i class="ri-file-list-3-line"></i><span>Report</span></a></li>
-            </ul>
-        </nav>
-        <div class="logout">
-            <button><i class="ri-logout-box-line"></i><span>Logout</span></button>
+    <div class="login-card">
+        <img src="GGF logo_hijau.png" alt="GGF Logo" class="logo-placeholder">
+        
+        <h2>Welcome Back</h2>
+        <p class="subtitle">Sign in to access your training dashboard</p>
+
+        <form action="login_process.php" method="POST">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" placeholder="Enter your email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+
+            <button type="submit" class="btn-signin">
+                <span>Sign In</span>
+                <svg>
+                    <defs>
+                        <linearGradient id="multiColorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#197B40" />   <stop offset="50%" stop-color="#ffffff" />  <stop offset="100%" stop-color="#14674b" /> </linearGradient>
+                    </defs>
+                    <rect x="0" y="0"></rect>
+                </svg>
+            </button>
+        </form>
+
+        <div class="footer-text">
+            Don't have an account? <a href="#">Contact Administrator</a>
         </div>
     </div>
-
-    <div class="content">
-        <header class="header">
-            <div class="flex items-center justify-between">
-                <h1>Dashboard</h1>
-                <div class="user-info">
-                    <div class="avatar">AD</div>
-                    <div>
-                        <p class="name">Admin User</p>
-                        <p class="role">Administrator</p>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <div class="cards">
-            <div class="card">
-                <div class="icon"><i class="ri-time-line"></i></div>
-                <span class="text-green-500">+12.5%</span>
-                <h3>Total Learning Hours</h3>
-                <p>12,458</p>
-            </div>
-            <div class="card">
-                <div class="icon"><i class="ri-group-line"></i></div>
-                <span class="text-green-500">+8.2%</span>
-                <h3>Total Trainee</h3>
-                <p>1,247</p>
-            </div>
-        </div>
-
-        <div class="filters">
-            <h2>Data Filtering</h2>
-            <div class="grid grid-cols-3 gap-6">
-                <!-- Filtering Form (with select inputs) goes here -->
-                <select>
-                    <option>Select BU</option>
-                    <option>PT Great Giant Pineapple</option>
-                    <option>PT Umas Jaya Agrotama</option>
-                    <option>PT Bromelain Enzyme</option>
-                    <option>PT Setia Karya Transport</option>
-                    <option>PT Great Giant Livestock</option>
-                    <option>PT Inbio Tani Nusantara</option>
-                    <option>PT Umas Jaya Gunung Katun</option>
-                    <option>PT Nusantara Segar Abadi</option>
-                    <option>PT Sewu Segar Nusantara</option>
-                    <option>PT Sewu Segar Primatama</option>
-                    <option>Great Giant Foods JPN</option>
-                    <option>Great Giant Foods SG and CN</option>
-                    <option>Great Giant Foods USA</option>
-                    <option>PT Sewu Sentral Primatama</option>
-                    <option>PT Sewu Primatama Indonesia</option>
-                </select>
-                <!-- Add other filter selects here -->
-            </div>
-            <div class="grid grid-cols-3 gap-6">
-                <!-- Filtering Form (with select inputs) goes here -->
-                <select>
-                    <option>Select BU</option>
-                    <option>PT Great Giant Pineapple</option>
-                    <option>PT Umas Jaya Agrotama</option>
-                    <option>PT Bromelain Enzyme</option>
-                    <option>PT Setia Karya Transport</option>
-                    <option>PT Great Giant Livestock</option>
-                    <option>PT Inbio Tani Nusantara</option>
-                    <option>PT Umas Jaya Gunung Katun</option>
-                    <option>PT Nusantara Segar Abadi</option>
-                    <option>PT Sewu Segar Nusantara</option>
-                    <option>PT Sewu Segar Primatama</option>
-                    <option>Great Giant Foods JPN</option>
-                    <option>Great Giant Foods SG and CN</option>
-                    <option>Great Giant Foods USA</option>
-                    <option>PT Sewu Sentral Primatama</option>
-                    <option>PT Sewu Primatama Indonesia</option>
-                </select>
-                <!-- Add other filter selects here -->
-            </div>
-            <div class="btn-group">
-                <button class="reset">Reset Filters</button>
-                <button class="apply">Apply Filter</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 </body>
 </html>
