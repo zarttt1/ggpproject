@@ -6,7 +6,7 @@ require 'vendor/autoload.php';
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "your_database_name"; // Ganti dengan nama database Anda
+$dbname = "trainingc"; // Ganti dengan nama database Anda
 
 // Membuat koneksi ke database
 $conn = new mysqli($servername, $username, $password, $dbname);
