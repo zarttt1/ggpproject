@@ -1,96 +1,301 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GGF Upload</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <!-- Header -->
-    <header class="header">
-      <div class="logo">
-        <img src="GGF_logo024_putih.png" alt="GGF Logo" class="ggf-icon" />
-      </div>
-      <div class="content-title">
-        <a href="a.html" class="title-link">Dashboard</a>
-        <a href="upload.html" class="title-link active">Upload</a>
-        <a href="report.php" class="title-link">Report</a>
-      </div>
-    </header>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GGF - Upload Data</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- Global Reset & Body --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
 
-    <!-- Main Content -->
-    <div class="upload-container">
-      <div class="before-upload">
-        <p>Before you upload</p>
-        <p>
-          To ensure data accuracy, please use the standardized Excel template.
-          Do not change the column headers.
-        </p>
-      </div>
-      <div class="upload-section">
-        <div class="file-dropzone">
-          <div class="file-placeholder">
-            <p>Drag & drop your file here</p>
-            <button class="browse-btn">Browse File</button>
-          </div>
-          <input type="file" class="file-input" />
-          <p>Supported formats: XLSX, CSV (Data files)</p>
+        /* --- Main Wrapper --- */
+        .main-wrapper {
+            background-color: #f3f4f7;
+            padding: 20px 40px; 
+            height: 100vh;
+            overflow-y: auto;
+            width: 100%;
+            position: relative;
+        }
+
+        /* --- Navigation Bar --- */
+        .navbar {
+            background-color: #197B40;
+            height: 70px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .logo-section img { height: 40px; }
+        .nav-links { display: flex; gap: 30px; align-items: center; }
+        .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
+        .nav-links a:hover { opacity: 1; }
+        .nav-links a.active { background: white; color: #197B40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
+        .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
+        .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+
+        /* --- Content Card --- */
+        .content-card { 
+            background: white; 
+            border-radius: 20px; 
+            overflow: hidden; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); 
+            margin-bottom: 50px; 
+            padding: 40px;
+        }
+        .card-header { margin-bottom: 25px; }
+        .card-title { font-size: 20px; font-weight: 700; color: #197B40; }
+
+        /* --- Instruction Box --- */
+        .instruction-box {
+            background-color: #e8f5e9;
+            border-left: 5px solid #197B40;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .instruction-text h4 { color: #197B40; margin-bottom: 5px; font-weight: 700; font-size: 14px; }
+        .instruction-text p { color: #555; font-size: 13px; margin: 0; }
+
+        /* --- Upload Zone --- */
+        .upload-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 20px;
+            background-color: #fafafa;
+            padding: 50px;
+            text-align: center;
+            transition: all 0.3s;
+            margin-bottom: 40px;
+        }
+        .upload-zone:hover { border-color: #197B40; background-color: #f0fdf4; }
+        .upload-icon-circle {
+            width: 70px; height: 70px;
+            background-color: #e8f5e9;
+            color: #197B40;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px auto;
+        }
+        .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #333; }
+        .upload-subtitle { color: #888; font-size: 13px; margin-bottom: 30px; }
+
+        /* --- FIXED SNAKE BUTTONS --- */
+        .btn-snake {
+            position: relative;
+            background: #197B40;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 25px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.2s, color 0.2s; /* Smooth transition for text color too */
+            overflow: visible;
+            font-size: 13px;
+        }
+
+        /* Secondary Button (Outline Style) */
+        .btn-snake.secondary { 
+            background: white; 
+            color: #197B40; 
+            border: 1px solid #197B40; 
+        }
+
+        /* Disabled Button */
+        .btn-snake.disabled { 
+            background: #cbd5e1; 
+            color: white; 
+            cursor: not-allowed; 
+            border: none; 
+        }
+
+        /* Z-index fixes to ensure text sits above border animation */
+        .btn-snake span, .btn-snake i, .btn-snake svg.lucide { 
+            position: relative; 
+            z-index: 2; 
+        }
+
+        /* --- FIX 1: Target ONLY the border SVG, not the icon SVG --- */
+        .btn-snake .snake-border { 
+            position: absolute; 
+            top: -2px; 
+            left: -2px; 
+            width: calc(100% + 4px); 
+            height: calc(100% + 4px); 
+            fill: none; 
+            pointer-events: none; 
+            overflow: visible;
+            z-index: 1;
+        }
+
+        .btn-snake .snake-border rect { 
+            width: 100%; 
+            height: 100%; 
+            rx: 25px; 
+            ry: 25px; 
+            stroke: #FF9A02; 
+            stroke-width: 3; 
+            stroke-dasharray: 120, 380; 
+            stroke-dashoffset: 0; 
+            opacity: 0; 
+            transition: opacity 0.3s; 
+        }
+
+        /* Hover: Primary Button */
+        .btn-snake:not(.disabled):not(.secondary):hover { 
+            background: #145a32; 
+            color: white; 
+        }
+
+        /* --- FIX 2: Hover for Secondary Button (Ensure text stays Green) --- */
+        .btn-snake.secondary:hover { 
+            background: #e8f5e9; 
+            color: #197B40; /* Force Text Color to Green */
+        }
+
+        /* Trigger Animation on Hover */
+        .btn-snake:not(.disabled):hover .snake-border rect { 
+            opacity: 1; 
+            animation: snakeBorder 2s linear infinite; 
+        }
+
+        @keyframes snakeBorder { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
+
+        /* --- Table Styles --- */
+        .table-section-title { margin-bottom: 20px; font-size: 16px; font-weight: 700; color: #333; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 13px; color: #888; padding: 15px 0; border-bottom: 1px solid #eee; }
+        td { padding: 20px 0; font-size: 14px; color: #333; border-bottom: 1px solid #f9f9f9; }
+        .file-cell { display: flex; align-items: center; gap: 12px; }
+        .icon-box { background: #e8f5e9; color: #197B40; padding: 8px; border-radius: 8px; display: flex; align-items: center; }
+        .icon-box.csv { background: #fff3e0; color: #f57c00; }
+        .file-name-text { font-weight: 700; }
+        .badge { padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; }
+        .status-success { background: #d1fae5; color: #065f46; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .row-count { font-weight: bold; color: #197B40; }
+    </style>
+</head>
+<body>
+
+    <div class="main-wrapper">
+        <nav class="navbar">
+            <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
+            <div class="nav-links">
+                <a href="index.php">Dashboard</a>
+                <a href="reports.html">Reports</a>
+                <a href="#" class="active">Upload Data</a>
+            </div>
+            <div class="user-profile"><div class="avatar-circle">AD</div></div>
+        </nav>
+
+        <div class="content-card">
+            <div class="card-header">
+                <div class="card-title">Upload Data</div>
+            </div>
+
+            <div class="instruction-box">
+                <div class="instruction-text">
+                    <h4>Before you upload</h4>
+                    <p>To ensure data accuracy, please use the standardized Excel template.</p>
+                </div>
+                <button class="btn-snake secondary">
+                    <i data-lucide="download" style="width: 14px;"></i>
+                    <span>Download Template</span>
+                    <svg class="snake-border"><rect x="0" y="0"></rect></svg>
+                </button>
+            </div>
+
+            <div class="upload-zone">
+                <div class="upload-icon-circle">
+                    <i data-lucide="cloud-upload" style="width: 32px; height: 32px;"></i>
+                </div>
+                <div class="upload-title">Drag & drop your file here or click to browse</div>
+                <div class="upload-subtitle">Supported formats: .XLSX, .CSV (Max 10MB)</div>
+                
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button class="btn-snake secondary">
+                        <span>Browse Files</span>
+                        <svg class="snake-border"><rect x="0" y="0"></rect></svg>
+                    </button>
+                    <button class="btn-snake disabled">
+                        <span>Upload Data</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-section-title">Recent Uploads</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Filename</th>
+                        <th>Uploaded By</th>
+                        <th>Status</th>
+                        <th>Rows Processed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2024-01-15 14:30</td>
+                        <td>
+                            <div class="file-cell">
+                                <div class="icon-box"><i data-lucide="file-spreadsheet" style="width:18px;"></i></div>
+                                <span class="file-name-text">Q1_Training_Data.xlsx</span>
+                            </div>
+                        </td>
+                        <td>Admin User</td>
+                        <td><span class="badge status-success">Success</span></td>
+                        <td><span class="row-count">245</span></td>
+                    </tr>
+                    <tr>
+                        <td>2024-01-14 09:15</td>
+                        <td>
+                            <div class="file-cell">
+                                <div class="icon-box"><i data-lucide="file-spreadsheet" style="width:18px;"></i></div>
+                                <span class="file-name-text">Leadership_Program.xlsx</span>
+                            </div>
+                        </td>
+                        <td>HR Manager</td>
+                        <td><span class="badge status-success">Success</span></td>
+                        <td><span class="row-count">128</span></td>
+                    </tr>
+                    <tr>
+                        <td>2024-01-13 16:45</td>
+                        <td>
+                            <div class="file-cell">
+                                <div class="icon-box csv"><i data-lucide="file-text" style="width:18px;"></i></div>
+                                <span class="file-name-text">Safety_Training.csv</span>
+                            </div>
+                        </td>
+                        <td>Admin User</td>
+                        <td><span class="badge status-failed">Failed</span></td>
+                        <td><span class="row-count">0</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
         </div>
-      </div>
-
-      <!-- Recent Uploads Section -->
-      <div class="recent-uploads">
-        <h2>Recent Uploads</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Date & Time</th>
-              <th>Filename</th>
-              <th>Uploaded By</th>
-              <th>Status</th>
-              <th>Rows Processed</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>2024-08-18 15:20</td>
-              <td>Q1_Training_Data.xlsx</td>
-              <td>John Smith</td>
-              <td class="status success">Success</td>
-              <td>245</td>
-            </tr>
-            <tr>
-              <td>2024-08-19 08:15</td>
-              <td>December_Sessions.xlsx</td>
-              <td>Sarah Johnson</td>
-              <td class="status success">Success</td>
-              <td>180</td>
-            </tr>
-            <tr>
-              <td>2024-08-19 09:15</td>
-              <td>November_Report.xlsx</td>
-              <td>Michael Chen</td>
-              <td class="status failed">Failed</td>
-              <td>0</td>
-            </tr>
-            <tr>
-              <td>2024-08-19 10:15</td>
-              <td>October_Training.xlsx</td>
-              <td>Emily Davis</td>
-              <td class="status success">Success</td>
-              <td>312</td>
-            </tr>
-            <tr>
-              <td>2024-08-19 11:15</td>
-              <td>September_Data.xlsx</td>
-              <td>David Wilson</td>
-              <td class="status success">Success</td>
-              <td>272</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </div>
-  </body>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
 </html>
