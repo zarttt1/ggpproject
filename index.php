@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GGF Login</title>
+    <title>GGF - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        /* 1. General Reset and Body Styles */
+        /* 1. Global Reset & Body */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -14,141 +15,297 @@
         }
 
         body {
-            background-color: #197B40;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            background-color: #117054; /* Dark Brand Green */
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
         }
 
-        .login-card {
+        /* 2. Main Wrapper (Matches Reports Page) */
+        .main-wrapper {
             background-color: #f3f4f7;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            height: 100vh;
+            overflow-y: auto;
             width: 100%;
-            max-width: 400px;
-            text-align: center;
+            position: relative;
         }
 
-        .logo-placeholder {
-            width: 150px;
-            height: auto;
+        /* 3. Navigation Bar */
+        .navbar {
+            background-color: #197B40;
+            height: 70px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .logo-section img { height: 40px; }
+        .nav-links { display: flex; gap: 30px; align-items: center; }
+        .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
+        .nav-links a:hover { opacity: 1; }
+        .nav-links a.active { background: white; color: #197B40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
+        .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
+        .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+
+        /* 4. Dashboard Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
             margin-bottom: 30px;
         }
 
-        h2 { color: #14674b; margin-bottom: 5px; font-size: 24px; }
-        p.subtitle { color: #666; font-size: 14px; margin-bottom: 30px; }
-
-        .form-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px; }
-        
-        input[type="email"], input[type="password"] {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ccc;
-            border-radius: 25px;
-            outline: none;
-            font-size: 14px;
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            position: relative;
         }
 
-        /* 6. Multi-Color Animated Border Button */
-        .btn-signin {
-            position: relative;
-            width: 100%;
+        .stat-icon {
+            width: 50px;
             height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-orange { background-color: #FFF4E5; color: #FF9A02; }
+        .icon-green { background-color: #E8F5E9; color: #197B40; }
+
+        .stat-label { color: #666; font-size: 14px; font-weight: 500; }
+        .stat-value { color: #333; font-size: 36px; font-weight: 700; line-height: 1; }
+
+        /* 5. Search & Filters Section */
+        .filter-section {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+
+        .filter-header {
+            background-color: #197B40;
+            padding: 20px 30px;
+            color: white;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .filter-body {
+            padding: 30px;
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr; /* 3 Columns */
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            color: #197B40;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .input-group select, 
+        .input-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #197B40;
+            border-radius: 12px;
+            outline: none;
+            font-size: 13px;
+            color: #333;
+            background: white;
+        }
+        
+        .input-group input::placeholder { color: #aaa; }
+
+        /* Button Actions */
+        .filter-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .btn-reset {
+            padding: 10px 30px;
+            border: 1px solid #197B40;
+            background: white;
+            color: #197B40;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-reset:hover { background: #f0f0f0; }
+
+        /* Animated Apply Button (Orange) */
+        .btn-apply {
+            position: relative;
             background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%);
             color: white;
             border: none;
-            border-radius: 25px;
-            font-size: 16px;
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: center;
+            display: inline-flex;
             align-items: center;
-            overflow: visible; 
+            justify-content: center;
+            overflow: visible !important;
+            z-index: 1;
         }
 
-        .btn-signin span {
-            position: relative;
-            z-index: 2;
-        }
+        .btn-apply span { position: relative; z-index: 5; }
 
-        .btn-signin svg {
+        .btn-apply svg {
             position: absolute;
-            top: -2px;
-            left: -2px;
-            width: calc(100% + 4px); 
+            top: -2px; left: -2px;
+            width: calc(100% + 4px);
             height: calc(100% + 4px);
-            fill: none;
+            overflow: visible !important;
             pointer-events: none;
-            overflow: visible;
+            z-index: -1;
         }
 
-        .btn-signin rect {
-            width: 100%;
-            height: 100%;
-            rx: 25px;
-            ry: 25px;
-            stroke: url(#multiColorGradient); 
-            stroke-width: 5;
-            stroke-dasharray: 120, 380; 
-            stroke-dashoffset: 0;
+        .btn-apply rect {
+            width: 100%; height: 100%;
+            rx: 50px; ry: 50px;
+            fill: none;
+            stroke: #197B40; /* Dark Green Stroke */
+            stroke-width: 3;
+            stroke-dasharray: 40, 150;
             opacity: 0;
             transition: opacity 0.3s;
         }
 
-        .btn-signin:hover rect {
+        .btn-apply:hover rect {
             opacity: 1;
-            animation: snakeMove 2s linear infinite;
+            animation: snake 1.5s linear infinite;
         }
 
-        @keyframes snakeMove {
-            from { stroke-dashoffset: 500; }
-            to { stroke-dashoffset: 0; }
-        }
+        @keyframes snake { from { stroke-dashoffset: 250; } to { stroke-dashoffset: 0; } }
 
-        .footer-text { font-size: 12px; color: #777; }
-        .footer-text a { color: #1a7f5d; text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="login-card">
-        <img src="GGF logo_hijau.png" alt="GGF Logo" class="logo-placeholder">
-        
-        <h2>Welcome Back</h2>
-        <p class="subtitle">Sign in to access your training dashboard</p>
-
-        <form action="login_process.php" method="POST">
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" placeholder="Enter your email" required>
+    <div class="main-wrapper">
+        <nav class="navbar">
+            <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
+            <div class="nav-links">
+                <a href="#" class="active">Dashboard</a>
+                <a href="reports.html">Reports</a>
+                <a href="upload.html">Upload Data</a>
             </div>
+            <div class="user-profile"><div class="avatar-circle">AD</div></div>
+        </nav>
 
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon icon-orange">
+                    <i data-lucide="clock" style="width:24px;"></i>
+                </div>
+                <div>
+                    <div class="stat-label">Total Learning Hours</div>
+                    <div class="stat-value">12,458</div>
+                </div>
+                </div>
+
+            <div class="stat-card">
+                <div class="stat-icon icon-green">
+                    <i data-lucide="users" style="width:24px;"></i>
+                </div>
+                <div>
+                    <div class="stat-label">Total Employees</div>
+                    <div class="stat-value">1,247</div>
+                </div>
+                </div>
+        </div>
+
+        <div class="filter-section">
+            <div class="filter-header">Search & Filters</div>
+            <div class="filter-body">
+                <div class="filter-row">
+                    <div class="input-group">
+                        <label>Business Unit</label>
+                        <select>
+                            <option>Select BU e.g., Bromelain Enzyme...</option>
+                            <option>Production</option>
+                            <option>Marketing</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Function N-1</label>
+                        <select>
+                            <option>Select Division e.g., Production...</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Function N-2</label>
+                        <select>
+                            <option>Select Dept e.g., Quality Assurance...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-row">
+                    <div class="input-group">
+                        <label>Training Type</label>
+                        <select>
+                            <option>Select Training Type</option>
+                            <option>Technical</option>
+                            <option>Soft Skills</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Method</label>
+                        <select>
+                            <option>Select Method</option>
+                            <option>Online</option>
+                            <option>Offline</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Training Name</label>
+                        <input type="text" placeholder="Search or type training name...">
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button class="btn-reset">Reset Filters</button>
+                    <button class="btn-apply">
+                        <span>Apply Filter</span>
+                        <svg><rect x="0" y="0"></rect></svg>
+                    </button>
+                </div>
             </div>
-
-            <button type="submit" class="btn-signin">
-                <span>Sign In</span>
-                <svg>
-                    <defs>
-                        <linearGradient id="multiColorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stop-color="#197B40" />   <stop offset="50%" stop-color="#ffffff" />  <stop offset="100%" stop-color="#14674b" /> </linearGradient>
-                    </defs>
-                    <rect x="0" y="0"></rect>
-                </svg>
-            </button>
-        </form>
-
-        <div class="footer-text">
-            Don't have an account? <a href="#">Contact Administrator</a>
         </div>
     </div>
 
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>
