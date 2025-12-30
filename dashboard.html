@@ -7,57 +7,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* 1. Global Reset & Body */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            background-color: #117054;
-            padding: 0;
-            margin: 0;
-            overflow: hidden;
-            height: 100vh;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
 
         /* 2. Main Wrapper */
         .main-wrapper {
-            background-color: #f3f4f7;
-            padding: 20px 40px;
-            height: 100vh;
-            overflow-y: auto;
-            transition: all 0.4s cubic-bezier(0.32, 1, 0.23, 1);
-            transform-origin: center left;
-            width: 100%;
-            position: relative;
-            display: flex;
-            flex-direction: column;
+            background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto;
+            transition: all 0.4s cubic-bezier(0.32, 1, 0.23, 1); transform-origin: center left;
+            width: 100%; position: relative; display: flex; flex-direction: column;
         }
-
         .drawer-open .main-wrapper {
-            transform: scale(0.85) translateX(24px);
-            border-radius: 35px;
-            pointer-events: auto;
-            box-shadow: -20px 0 40px rgba(0,0,0,0.2);
-            overflow: hidden;
+            transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto;
+            box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
         /* 3. Navigation Bar */
         .navbar {
-            background-color: #197B40;
-            height: 70px;
-            border-radius: 50px;
-            display: flex;
-            align-items: center;
-            padding: 0 30px;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            flex-shrink: 0;
+            background-color: #197B40; height: 70px; border-radius: 50px; display: flex; align-items: center;
+            padding: 0 30px; justify-content: space-between; margin-bottom: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
         }
-
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
         .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
@@ -67,30 +35,12 @@
         .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
 
         /* 4. Summary Cards */
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 20px;
-            margin-bottom: 25px;
-            width: 100%;
-            flex-shrink: 0;
-        }
-
+        .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; margin-bottom: 25px; width: 100%; flex-shrink: 0; }
         .summary-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px 25px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-            border-left: 5px solid #197B40;
-            cursor: pointer;
-            transition: transform 0.2s;
-            min-width: 0;
+            background: white; border-radius: 15px; padding: 20px 25px; display: flex; align-items: center; gap: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-left: 5px solid #197B40; cursor: pointer; transition: transform 0.2s; min-width: 0;
         }
         .summary-card:hover { transform: translateY(-3px); }
-
         .s-icon { color: #888; display: flex; align-items: center; }
         .s-content { display: flex; flex-direction: column; white-space: nowrap; overflow: hidden; }
         .s-label { font-size: 11px; color: #999; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px; }
@@ -98,53 +48,20 @@
 
         /* 5. Hero Stats Card */
         .hero-card {
-            background-color: #0e5e45;
-            background-image: linear-gradient(135deg, #117054 0%, #0a4d38 100%);
-            border-radius: 20px;
-            padding: 40px 50px;
-            color: white;
-            display: grid;
-            grid-template-columns: min-content 1fr min-content; 
-            gap: 60px;
-            align-items: center;
-            box-shadow: 0 10px 30px rgba(17, 112, 84, 0.2);
-            margin-bottom: 25px;
-            width: 100%;
-            position: relative;
-            overflow: hidden;
-            min-height: 180px; 
-            flex-shrink: 0;
+            background-color: #0e5e45; background-image: linear-gradient(135deg, #117054 0%, #0a4d38 100%);
+            border-radius: 20px; padding: 40px 50px; color: white; display: grid; grid-template-columns: min-content 1fr min-content;
+            gap: 60px; align-items: center; box-shadow: 0 10px 30px rgba(17, 112, 84, 0.2); margin-bottom: 25px;
+            width: 100%; position: relative; overflow: hidden; min-height: 180px; flex-shrink: 0;
         }
-
-        .hero-card::after {
-            content: '';
-            position: absolute; right: -50px; top: -50px; width: 350px; height: 350px;
-            background: rgba(255,255,255,0.05); border-radius: 50%; pointer-events: none;
-        }
-
+        .hero-card::after { content: ''; position: absolute; right: -50px; top: -50px; width: 350px; height: 350px; background: rgba(255,255,255,0.05); border-radius: 50%; pointer-events: none; }
         .hero-main { display: flex; flex-direction: column; gap: 8px; white-space: nowrap; }
         .hero-number { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
         .hero-label { font-size: 13px; opacity: 0.85; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; }
-
-        .hero-breakdown {
-            display: flex;
-            gap: 40px;
-            flex-wrap: wrap; 
-        }
+        .hero-breakdown { display: flex; gap: 40px; flex-wrap: wrap; }
         .breakdown-item { display: flex; align-items: center; gap: 15px; }
-        .icon-box { 
-            width: 44px; 
-            height: 44px; 
-            background: rgba(255,255,255,0.15); 
-            border-radius: 12px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            flex-shrink: 0;
-        }
+        .icon-box { width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .b-text h4 { font-size: 13px; font-weight: 400; opacity: 0.85; margin-bottom: 4px; white-space: nowrap; }
         .b-text p { font-size: 20px; font-weight: 700; white-space: nowrap; }
-
         .hero-growth { text-align: right; white-space: nowrap; }
         .growth-badge { display: inline-flex; align-items: center; gap: 8px; font-size: 32px; font-weight: 700; }
         .growth-sub { font-size: 12px; opacity: 0.75; margin-top: 8px; }
@@ -153,38 +70,41 @@
         .training-section {
             background: white;
             border-radius: 20px;
-            padding: 30px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: flex;
             flex-direction: column;
             flex-grow: 1;
             min-height: 0;
+            overflow: hidden;
         }
 
+        /* Green Header */
         .section-header {
+            background-color: #197B40;
+            padding: 25px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 25px;
             flex-shrink: 0;
         }
 
-        .section-title { font-size: 20px; font-weight: 700; color: #333; }
+        .section-title { font-size: 20px; font-weight: 700; color: white; }
 
         .header-actions { display: flex; gap: 15px; align-items: center; }
 
         .search-box {
-            background: #f3f4f7; border-radius: 50px; padding: 12px 20px;
+            background: white;
+            border-radius: 50px; padding: 12px 20px;
             display: flex; align-items: center; gap: 10px; width: 350px;
         }
         .search-box input { border: none; outline: none; background: transparent; width: 100%; font-size: 14px; color: #333; }
 
         .btn-filter {
-            background: white; border: 2px solid #197B40; color: #197B40;
+            background: white; border: none; color: #197B40;
             padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 600; cursor: pointer;
             display: flex; align-items: center; gap: 8px; transition: all 0.3s;
         }
-        .btn-filter:hover { background: #197B40; color: white; }
+        .btn-filter:hover { background: #f0f0f0; }
 
         /* Training Table */
         .training-list {
@@ -192,31 +112,26 @@
             flex-direction: column;
             gap: 0;
             overflow-y: auto;
-            padding-right: 5px;
+            padding: 20px 30px 30px 30px;
             flex-grow: 1;
         }
 
         .training-list::-webkit-scrollbar { width: 6px; }
         .training-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
         .training-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
-        .training-list::-webkit-scrollbar-thumb:hover { background: #aaa; }
 
         .training-header {
             display: grid;
-            grid-template-columns: 1fr 150px 180px 120px 150px;
+            grid-template-columns: 1fr;
             gap: 20px;
             padding: 15px 20px;
             border-bottom: 1px solid #eee;
-            font-size: 13px;
-            color: #888;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
+            font-size: 13px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
         }
 
         .training-item {
             display: grid;
-            grid-template-columns: 1fr 150px 180px 120px 150px;
+            grid-template-columns: 1fr;
             gap: 20px;
             padding: 20px;
             align-items: center;
@@ -224,175 +139,55 @@
             transition: all 0.2s;
             border-bottom: 1px solid #f9f9f9;
         }
-        
-        .training-item:hover { 
-            background: #fafbfc;
-        }
-        
-        .training-item.selected { 
-            background: #e8f5e9;
-        }
+        .training-item:hover { background: #fafbfc; }
+        .training-item.selected { background: #e8f5e9; }
 
-        .training-name-col { 
-            display: flex; 
-            align-items: center; 
-            gap: 12px; 
-        }
-
+        .training-name-col { display: flex; align-items: center; gap: 12px; }
         .training-icon {
-            background: #e8f5e9;
-            color: #197B40;
-            width: 40px; 
-            height: 40px;
-            border-radius: 8px;
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            flex-shrink: 0;
+            background: #e8f5e9; color: #197B40; width: 40px; height: 40px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-
-        .training-info h4 { 
-            font-size: 14px; 
-            font-weight: 700; 
-            color: #333; 
-        }
-
-        .training-date {
-            font-size: 14px;
-            color: #333;
-        }
-
-        .training-participants {
-            font-size: 14px;
-            color: #333;
-            text-align: center;
-        }
-
-        .badge {
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-size: 11px;
-            font-weight: 600;
-            display: inline-block;
-        }
-
-        .badge-tech {
-            background: #e3f2fd;
-            color: #1e88e5;
-        }
-
-        .badge-soft {
-            background: #fff3e0;
-            color: #f57c00;
-        }
-
-        .badge-compliance {
-            background: #f3e5f5;
-            color: #8e24aa;
-        }
-
-        .btn-view {
-            position: relative;
-            background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%);
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 25px;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            overflow: visible;
-            white-space: nowrap;
-        }
-
-        .btn-view span,
-        .btn-view i {
-            position: relative;
-            z-index: 2;
-        }
-
-        .btn-view svg {
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            width: calc(100% + 4px);
-            height: calc(100% + 4px);
-            fill: none;
-            pointer-events: none;
-            overflow: visible;
-        }
-
-        .btn-view rect {
-            width: 100%;
-            height: 100%;
-            rx: 25px;
-            ry: 25px;
-            stroke: #197B40;
-            stroke-width: 3;
-            stroke-dasharray: 120, 380;
-            stroke-dashoffset: 0;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .btn-view:hover rect {
-            opacity: 1;
-            animation: snakeBorder 2s linear infinite;
-        }
+        .training-info h4 { font-size: 14px; font-weight: 700; color: #333; }
 
         /* Filter Drawer */
         .filter-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s;
-            pointer-events: none;
+            background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none;
         }
-
         .filter-drawer {
-            position: fixed; top: 20px; bottom: 20px; right: -400px;
-            width: 380px; background: white; z-index: 1001;
-            box-shadow: -10px 0 30px rgba(0,0,0,0.15);
-            transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1);
-            display: flex; flex-direction: column; 
-            border-radius: 35px; overflow: hidden;
+            position: fixed; top: 20px; bottom: 20px; right: -400px; width: 380px; background: white; z-index: 1001;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.15); transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1);
+            display: flex; flex-direction: column; border-radius: 35px; overflow: hidden;
         }
-
         .drawer-open .filter-overlay { display: block; opacity: 1; pointer-events: auto; }
         .drawer-open .filter-drawer { right: 20px; }
-
         .drawer-header { background-color: #197B40; color: white; padding: 25px; display: flex; justify-content: space-between; align-items: center; }
         .drawer-header h4 { font-size: 16px; font-weight: 600; }
         .drawer-content { padding: 25px; overflow-y: auto; flex-grow: 1; }
-
         .filter-group { margin-bottom: 20px; }
         .filter-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
-        
         .date-row { display: flex; gap: 10px; }
         .date-input-wrapper { flex: 1; position: relative; }
         .date-input-wrapper input { width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; outline: none; color: #333; }
         .date-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #999; width: 14px; }
-
         .filter-group select { 
-            width: 100%; padding: 10px 15px; border: 1px solid #ddd; 
-            border-radius: 8px; outline: none; font-size: 13px; color: #333; appearance: none;
+            width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 8px; outline: none; font-size: 13px; color: #333; appearance: none;
             background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>') no-repeat right 12px center;
         }
-
         .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; }
         .btn-reset { background: #fff; border: 1px solid #ddd; color: #666; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; transition: 0.2s; }
         .btn-reset:hover { background: #f9f9f9; }
 
+        /* SNAKE ANIMATION BUTTON STYLES RESTORED */
         .btn-apply {
             position: relative;
             background: #197B40; color: white; border: none; padding: 12px 24px; border-radius: 25px;
-            flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; overflow: visible;
+            flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; 
+            transition: background 0.2s; overflow: visible;
         }
-
         .btn-apply span { position: relative; z-index: 2; }
         .btn-apply svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
+        /* Stroke is now #FF9A02 (Orange) to match previous designs */
         .btn-apply rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #FF9A02; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
         .btn-apply:hover { background: #145a32; }
         .btn-apply:hover rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
@@ -500,139 +295,43 @@
 
                 <div class="training-item" onclick="selectTraining(this, 'Leadership Excellence')">
                     <div class="training-name-col">
-                        <div class="training-icon">
-                            <i data-lucide="book-open" style="width:18px;"></i>
-                        </div>
-                        <div class="training-info">
-                            <h4>Leadership Excellence</h4>
-                        </div>
-                    </div>
-                    <div style="text-align: center;">
+                        <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <div class="training-info"><h4>Leadership Excellence</h4></div>
                     </div>
                 </div>
 
                 <div class="training-item" onclick="selectTraining(this, 'Data Analytics 101')">
                     <div class="training-name-col">
-                        <div class="training-icon">
-                            <i data-lucide="book-open" style="width:18px;"></i>
-                        </div>
-                        <div class="training-info">
-                            <h4>Data Analytics 101</h4>
-                        </div>
-                    </div>
-                    <div class="training-date">2024-01-20</div>
-                    <div style="text-align: center;">
-                        <span class="badge badge-tech">Technical</span>
-                    </div>
-                    <div class="training-participants">182</div>
-                    <div style="text-align: center;">
-                        <button class="btn-view">
-                            <span>View Details</span>
-                            <i data-lucide="arrow-right" style="width:14px;"></i>
-                            <svg>
-                                <rect x="0" y="0"></rect>
-                            </svg>
-                        </button>
+                        <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <div class="training-info"><h4>Data Analytics 101</h4></div>
                     </div>
                 </div>
 
                 <div class="training-item" onclick="selectTraining(this, 'Code of Conduct')">
                     <div class="training-name-col">
-                        <div class="training-icon">
-                            <i data-lucide="book-open" style="width:18px;"></i>
-                        </div>
-                        <div class="training-info">
-                            <h4>Code of Conduct</h4>
-                        </div>
-                    </div>
-                    <div class="training-date">2024-01-12</div>
-                    <div style="text-align: center;">
-                        <span class="badge badge-compliance">Compliance</span>
-                    </div>
-                    <div class="training-participants">512</div>
-                    <div style="text-align: center;">
-                        <button class="btn-view">
-                            <span>View Details</span>
-                            <i data-lucide="arrow-right" style="width:14px;"></i>
-                            <svg>
-                                <rect x="0" y="0"></rect>
-                            </svg>
-                        </button>
+                        <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <div class="training-info"><h4>Code of Conduct</h4></div>
                     </div>
                 </div>
 
                 <div class="training-item" onclick="selectTraining(this, 'Digital Marketing')">
                     <div class="training-name-col">
-                        <div class="training-icon">
-                            <i data-lucide="book-open" style="width:18px;"></i>
-                        </div>
-                        <div class="training-info">
-                            <h4>Digital Marketing</h4>
-                        </div>
-                    </div>
-                    <div class="training-date">2024-02-05</div>
-                    <div style="text-align: center;">
-                        <span class="badge badge-tech">Technical</span>
-                    </div>
-                    <div class="training-participants">156</div>
-                    <div style="text-align: center;">
-                        <button class="btn-view">
-                            <span>View Details</span>
-                            <i data-lucide="arrow-right" style="width:14px;"></i>
-                            <svg>
-                                <rect x="0" y="0"></rect>
-                            </svg>
-                        </button>
+                        <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <div class="training-info"><h4>Digital Marketing</h4></div>
                     </div>
                 </div>
 
                 <div class="training-item" onclick="selectTraining(this, 'Effective Communication')">
                     <div class="training-name-col">
-                        <div class="training-icon">
-                            <i data-lucide="book-open" style="width:18px;"></i>
-                        </div>
-                        <div class="training-info">
-                            <h4>Effective Communication</h4>
-                        </div>
-                    </div>
-                    <div class="training-date">2024-01-28</div>
-                    <div style="text-align: center;">
-                        <span class="badge badge-soft">Leadership & Softskills</span>
-                    </div>
-                    <div class="training-participants">328</div>
-                    <div style="text-align: center;">
-                        <button class="btn-view">
-                            <span>View Details</span>
-                            <i data-lucide="arrow-right" style="width:14px;"></i>
-                            <svg>
-                                <rect x="0" y="0"></rect>
-                            </svg>
-                        </button>
+                        <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <div class="training-info"><h4>Effective Communication</h4></div>
                     </div>
                 </div>
 
                 <div class="training-item" onclick="selectTraining(this, 'Project Management')">
                     <div class="training-name-col">
-                        <div class="training-icon">
-                            <i data-lucide="book-open" style="width:18px;"></i>
-                        </div>
-                        <div class="training-info">
-                            <h4>Project Management</h4>
-                        </div>
-                    </div>
-                    <div class="training-date">2024-02-10</div>
-                    <div style="text-align: center;">
-                        <span class="badge badge-tech">Technical</span>
-                    </div>
-                    <div class="training-participants">198</div>
-                    <div style="text-align: center;">
-                        <button class="btn-view">
-                            <span>View Details</span>
-                            <i data-lucide="arrow-right" style="width:14px;"></i>
-                            <svg>
-                                <rect x="0" y="0"></rect>
-                            </svg>
-                        </button>
+                        <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <div class="training-info"><h4>Project Management</h4></div>
                     </div>
                 </div>
             </div>
@@ -660,7 +359,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="filter-group">
                 <label>Business Unit</label>
                 <select><option>All</option><option>Production</option><option>Marketing</option></select>
@@ -674,41 +372,35 @@
                 <select><option>All</option><option>Dept A</option></select>
             </div>
             <div class="filter-group">
-<label>Function N-3</label>
-<select><option>All</option><option>Sub Dept B</option></select>
-</div>
-        <div class="filter-group">
-            <label>Training Type</label>
-            <select><option>All Types</option><option>Technical</option><option>Soft Skills</option></select>
+                <label>Function N-3</label>
+                <select><option>All</option><option>Sub Dept B</option></select>
+            </div>
+            <div class="filter-group">
+                <label>Training Type</label>
+                <select><option>All Types</option><option>Technical</option><option>Soft Skills</option></select>
+            </div>
+        </div>
+
+        <div class="drawer-footer">
+            <button class="btn-reset">Reset</button>
+            <button class="btn-apply" onclick="toggleDrawer()">
+                <span>Apply Filters</span>
+                <svg>
+                    <rect x="0" y="0"></rect>
+                </svg>
+            </button>
         </div>
     </div>
-
-    <div class="drawer-footer">
-        <button class="btn-reset">Reset</button>
-        <button class="btn-apply" onclick="toggleDrawer()">
-            <span>Apply Filters</span>
-            <svg>
-                <rect x="0" y="0"></rect>
-            </svg>
-        </button>
-    </div>
-</div>
 
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
     lucide.createIcons();
-
-    function toggleDrawer() {
-        document.getElementById('body').classList.toggle('drawer-open');
-    }
-
+    function toggleDrawer() { document.getElementById('body').classList.toggle('drawer-open'); }
     function selectTraining(element, trainingName) {
-        document.querySelectorAll('.training-item').forEach(item => {
-            item.classList.remove('selected');
-        });
-        
+        document.querySelectorAll('.training-item').forEach(item => { item.classList.remove('selected'); });
         element.classList.add('selected');
         document.getElementById('selected-training').textContent = trainingName;
     }
-</script></body>
+</script>
+</body>
 </html>
