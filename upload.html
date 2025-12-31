@@ -8,7 +8,7 @@
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="icon" type="image/png" href="/icons/icon.png">
+    <link rel="icon" type="image/png" href="/icons/icon.png" />
     <style>
       /* --- Global Reset & Body --- */
       * {
@@ -349,16 +349,13 @@
               template.
             </p>
           </div>
-          <button class="btn-snake secondary">
-            <i data-lucide="download" style="width: 14px"></i>
-            <a
-              href="download_template.php"
-              style="color: inherit; text-decoration: none"
-            >
+          <form action="download_template.php" method="POST">
+            <button type="submit" class="btn-snake secondary">
+              <i data-lucide="download" style="width: 14px"></i>
               <span>Download Template</span>
-            </a>
-            <svg class="snake-border"><rect x="0" y="0"></rect></svg>
-          </button>
+              <svg class="snake-border"><rect x="0" y="0"></rect></svg>
+            </button>
+          </form>
         </div>
 
         <form
@@ -366,9 +363,20 @@
           method="POST"
           enctype="multipart/form-data"
         >
-          <div class="upload-zone" onclick="document.getElementById('fileToUpload').click()">
+          <div
+            class="upload-zone"
+            onclick="document.getElementById('fileToUpload').click()"
+          >
             <div class="upload-icon-circle">
-              <img src="/icons/upload.ico" style="width: 32px; height: 32px; transform: scale(1.8); margin-right: 4px;">
+              <img
+                src="/icons/upload.ico"
+                style="
+                  width: 32px;
+                  height: 32px;
+                  transform: scale(1.8);
+                  margin-right: 4px;
+                "
+              />
             </div>
             <div class="upload-title">
               Drag & drop your file here or click to browse
@@ -376,17 +384,19 @@
             <div class="upload-subtitle" id="fileNameDisplay">
               Supported formats: .XLSX, .CSV (Max 10MB)
             </div>
-            
-            <input 
-              type="file" 
-              name="fileToUpload" 
-              id="fileToUpload" 
-              style="display: none;" 
+
+            <input
+              type="file"
+              name="fileToUpload"
+              id="fileToUpload"
+              style="display: none"
               onchange="document.getElementById('fileNameDisplay').innerText = 'Selected: ' + this.files[0].name; document.getElementById('fileNameDisplay').style.fontWeight = 'bold'; document.getElementById('fileNameDisplay').style.color = '#197b40';"
             />
           </div>
 
-          <div style="display: flex; justify-content: center; margin-bottom: 40px;">
+          <div
+            style="display: flex; justify-content: center; margin-bottom: 40px"
+          >
             <button type="submit" class="btn-snake">
               <span>Upload Data</span>
               <svg class="snake-border"><rect x="0" y="0"></rect></svg>
