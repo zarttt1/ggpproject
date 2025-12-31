@@ -366,27 +366,39 @@
           </button>
         </div>
 
-        <div class="upload-zone">
-          <div class="upload-icon-circle">
-            <i data-lucide="cloud-upload" style="width: 32px; height: 32px"></i>
-          </div>
-          <div class="upload-title">
-            Drag & drop your file here or click to browse
-          </div>
-          <div class="upload-subtitle">
-            Supported formats: .XLSX, .CSV (Max 10MB)
-          </div>
+        <form
+          action="process_upload.php"
+          method="POST"
+          enctype="multipart/form-data"
+        >
+          <div class="upload-zone">
+            <div class="upload-icon-circle">
+              <i
+                data-lucide="cloud-upload"
+                style="width: 32px; height: 32px"
+              ></i>
+            </div>
+            <div class="upload-title">
+              Drag & drop your file here or click to browse
+            </div>
+            <div class="upload-subtitle">
+              Supported formats: .XLSX, .CSV (Max 10MB)
+            </div>
 
-          <div style="display: flex; gap: 15px; justify-content: center">
-            <button class="btn-snake secondary">
-              <span>Browse Files</span>
-              <svg class="snake-border"><rect x="0" y="0"></rect></svg>
-            </button>
-            <button class="btn-snake disabled">
-              <span>Upload Data</span>
-            </button>
+            <div style="display: flex; gap: 15px; justify-content: center">
+              <input
+                type="file"
+                name="fileToUpload"
+                id="fileToUpload"
+                class="btn-snake secondary"
+              />
+              <button type="submit" class="btn-snake">
+                <span>Upload Data</span>
+                <svg class="snake-border"><rect x="0" y="0"></rect></svg>
+              </button>
+            </div>
           </div>
-        </div>
+        </form>
 
         <div class="table-section-title">Recent Uploads</div>
         <table>
