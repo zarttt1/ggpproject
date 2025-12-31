@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GGF - Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/icons/icon.png">
     <style>
         /* 1. Global Reset & Body */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
@@ -207,7 +208,7 @@
         <div class="summary-grid">
             <div class="summary-card" id="card-training">
                 <div class="s-close" onclick="clearFilter(event, 'training')"><i data-lucide="x"></i></div>
-                <div class="s-icon"><i data-lucide="book-open" size="20"></i></div>
+                <div class="s-icon"><img src="/icons/training title.ico" style="width: 36px; height: 36px; transform: scale(1.8); margin-right: 4px;"></img></div>
                 <div class="s-content">
                     <span class="s-label">Training</span>
                     <span class="s-value" id="val-training">All Trainings</span>
@@ -216,7 +217,7 @@
 
             <div class="summary-card" id="card-date" onclick="toggleDrawer()">
                 <div class="s-close" onclick="clearFilter(event, 'date')"><i data-lucide="x"></i></div>
-                <div class="s-icon"><i data-lucide="calendar" size="20"></i></div>
+                <div class="s-icon"><img src="/icons/calendar.ico" style="width: 36px; height: 36px; transform: scale(1.8); margin-right: 4px;"></img></div>
                 <div class="s-content">
                     <span class="s-label">Date Range</span>
                     <span class="s-value" id="val-date">All Time</span>
@@ -225,7 +226,7 @@
 
             <div class="summary-card" id="card-bu" onclick="toggleDrawer()">
                 <div class="s-close" onclick="clearFilter(event, 'bu')"><i data-lucide="x"></i></div>
-                <div class="s-icon"><i data-lucide="building" size="20"></i></div>
+                <div class="s-icon"><img src="/icons/businessunits.ico" style="width: 36px; height: 36px; transform: scale(1.8); margin-right: 4px;"></img></i></div>
                 <div class="s-content">
                     <span class="s-label">Business Unit</span>
                     <span class="s-value" id="val-bu">All Units</span>
@@ -234,7 +235,7 @@
 
             <div class="summary-card" id="card-func-n1" onclick="toggleDrawer()">
                 <div class="s-close" onclick="clearFilter(event, 'func-n1')"><i data-lucide="x"></i></div>
-                <div class="s-icon"><i data-lucide="network" size="20"></i></div>
+                <div class="s-icon"><img src="/icons/function.ico" style="width: 36px; height: 36px; transform: scale(1.8); margin-right: 4px;"></img></i></div>
                 <div class="s-content">
                     <span class="s-label">Function N-1</span>
                     <span class="s-value" id="val-func-n1">All Functions</span>
@@ -243,7 +244,7 @@
 
             <div class="summary-card" id="card-func-n2" onclick="toggleDrawer()">
                 <div class="s-close" onclick="clearFilter(event, 'func-n2')"><i data-lucide="x"></i></div>
-                <div class="s-icon"><i data-lucide="network" size="20"></i></div>
+                <div class="s-icon"><img src="/icons/function.ico" style="width: 36px; height: 36px; transform: scale(1.8); margin-right: 4px;"></img></div>
                 <div class="s-content">
                     <span class="s-label">Function N-2</span>
                     <span class="s-value" id="val-func-n2">All Functions</span>
@@ -252,7 +253,7 @@
 
             <div class="summary-card" id="card-type" onclick="toggleDrawer()">
                 <div class="s-close" onclick="clearFilter(event, 'type')"><i data-lucide="x"></i></div>
-                <div class="s-icon"><i data-lucide="layout-grid" size="20"></i></div>
+                <div class="s-icon"><img src="/icons/training type.ico" style="width: 36px; height: 36px; transform: scale(1.8); margin-right: 4px;"></img></i></div>
                 <div class="s-content">
                     <span class="s-label">Training Type</span>
                     <span class="s-value" id="val-type">All Types</span>
@@ -267,14 +268,14 @@
             </div>
             <div class="hero-breakdown">
                 <div class="breakdown-item">
-                    <div class="icon-box"><i data-lucide="building-2" color="white" size="20"></i></div>
+                    <div class="icon-box"><img src="/icons/inclass.ico" style="width: 24px; height: 24px; transform: scale(1.8);"></img></div>
                     <div class="b-text">
                         <h4>In-Class Training</h4>
                         <p>47,500h</p>
                     </div>
                 </div>
                 <div class="breakdown-item">
-                    <div class="icon-box"><i data-lucide="monitor-play" color="white" size="20"></i></div>
+                    <div class="icon-box"><img src="/icons/selfpaced.ico" style="width: 24px; height: 24px; transform: scale(1.8);"></img></div>
                     <div class="b-text">
                         <h4>Self-Paced Online</h4>
                         <p>10,115h</p>
@@ -292,11 +293,11 @@
                 <div class="section-title">Training Programs</div>
                 <div class="header-actions">
                     <div class="search-box">
-                        <i data-lucide="search" style="width:18px; color:#888;"></i>
+                        <img src="/icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;"></img>
                         <input type="text" placeholder="Search training name...">
                     </div>
                     <button class="btn-filter" onclick="toggleDrawer()">
-                        <i data-lucide="filter" style="width:16px;"></i>
+                        <img src="/icons/filter.ico" style="width: 24px; height: 24px; transform: scale(1.8); margin-right: 4px;"> 
                         Filters
                     </button>
                 </div>
