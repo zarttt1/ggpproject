@@ -1,13 +1,4 @@
 <?php
-// Enable error reporting for debugging
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
-// Include PhpSpreadsheet library
-require 'vendor/autoload.php';
-
-use PhpOffice\PhpSpreadsheet\IOFactory;
-
 // Database connection
 $servername = "localhost";
 $username = "root";
@@ -17,207 +8,245 @@ $dbname = "trainingc";
 $conn = new mysqli($servername, $username, $password, $dbname);
 
 if ($conn->connect_error) {
-    header('Location: upload.php?error=' . urlencode('Database connection failed'));
-    exit;
+    die("Connection failed: " . $conn->connect_error);
 }
 
-$allowed_extensions = ['xlsx', 'csv'];
-$upload_dir = 'uploads/';
-
-if (!file_exists($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
-}
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_FILES['fileToUpload']) && $_FILES['fileToUpload']['error'] !== UPLOAD_ERR_NO_FILE) {
-        
-        $file_name = $_FILES['fileToUpload']['name'];
-        $file_tmp = $_FILES['fileToUpload']['tmp_name'];
-        $file_size = $_FILES['fileToUpload']['size'];
-        $file_error = $_FILES['fileToUpload']['error'];
-        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-
-        // Validation
-        if ($file_size > 10 * 1024 * 1024) {
-            header('Location: upload.php?error=' . urlencode('File size exceeds 10MB limit'));
-            exit;
-        }
-
-        if (!in_array($file_ext, $allowed_extensions)) {
-            header('Location: upload.php?error=' . urlencode('Only .xlsx and .csv files are allowed'));
-            exit;
-        }
-
-        if ($file_error !== 0) {
-            header('Location: upload.php?error=' . urlencode('File upload error'));
-            exit;
-        }
-
-        // Save file
-        $new_file_name = uniqid('', true) . '.' . $file_ext;
-        $upload_path = $upload_dir . $new_file_name;
-
-        if (move_uploaded_file($file_tmp, $upload_path)) {
-            
-            $uploaded_by = 'Admin User';
-            $status = 'Processing';
-            $rows_processed = 0;
-            
-            try {
-                // Load the spreadsheet
-                $spreadsheet = IOFactory::load($upload_path);
-                $sheet = $spreadsheet->getActiveSheet();
-                $data = $sheet->toArray(null, true, true, true);
-                
-                // Remove header row
-                array_shift($data);
-                
-                $conn->begin_transaction();
-                
-                foreach ($data as $row) {
-                    // Skip empty rows
-                    if (empty($row['A']) || empty($row['B'])) continue;
-                    
-                    // Extract data from columns
-                    $index_karyawan = $row['A'];
-                    $nama_karyawan = $row['B'];
-                    $nama_subject = $row['C'];
-                    $date_start = $row['D'];
-                    $date_end = $row['E'];
-                    $credit_hour = $row['F'];
-                    $place = $row['G'];
-                    $method = $row['H'];
-                    $class = $row['I'];
-                    
-                    // Scores (Decimals)
-                    $satis_subject = $row['J'];
-                    $satis_instructor = $row['K']; // This is the Score
-                    $satis_infras = $row['L'];
-                    
-                    $pre_score = $row['M'];
-                    $post_score = $row['N'];
-                    $bu_name = $row['O'];
-                    $func_n1 = $row['P'];
-                    $func_n2 = $row['Q'];
-                    $jenis = $row['R'];
-                    
-                    // 1. Insert or get BU
-                    $stmt = $conn->prepare("SELECT id_bu FROM bu WHERE nama_bu = ?");
-                    $stmt->bind_param("s", $bu_name);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO bu (nama_bu) VALUES (?)");
-                        $stmt2->bind_param("s", $bu_name);
-                        $stmt2->execute();
-                        $id_bu = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_bu = $result->fetch_assoc()['id_bu'];
-                    }
-                    $stmt->close();
-                    
-                    // 2. Insert or get Function
-                    $stmt = $conn->prepare("SELECT id_func FROM func WHERE func_n1 = ? AND func_n2 = ?");
-                    $stmt->bind_param("ss", $func_n1, $func_n2);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO func (func_n1, func_n2) VALUES (?, ?)");
-                        $stmt2->bind_param("ss", $func_n1, $func_n2);
-                        $stmt2->execute();
-                        $id_func = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_func = $result->fetch_assoc()['id_func'];
-                    }
-                    $stmt->close();
-                    
-                    // 3. Insert or get Karyawan
-                    $stmt = $conn->prepare("SELECT id_karyawan FROM karyawan WHERE index_karyawan = ?");
-                    $stmt->bind_param("i", $index_karyawan);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO karyawan (id_bu, id_func, index_karyawan, nama_karyawan) VALUES (?, ?, ?, ?)");
-                        $stmt2->bind_param("iiis", $id_bu, $id_func, $index_karyawan, $nama_karyawan);
-                        $stmt2->execute();
-                        $id_karyawan = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_karyawan = $result->fetch_assoc()['id_karyawan'];
-                    }
-                    $stmt->close();
-                    
-                    // 4. Insert or get Training Subject
-                    // NOTE: Removed 'instructor' column from INSERT as it is not in the DB schema anymore
-                    $stmt = $conn->prepare("SELECT id_subject FROM training WHERE nama_subject = ? AND date_start = ?");
-                    $stmt->bind_param("ss", $nama_subject, $date_start);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO training (id_bu, id_func, nama_subject, date_start, date_end, credit_hour, place, method, jenis) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt2->bind_param("iisssdsss", $id_bu, $id_func, $nama_subject, $date_start, $date_end, $credit_hour, $place, $method, $jenis);
-                        $stmt2->execute();
-                        $id_subject = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_subject = $result->fetch_assoc()['id_subject'];
-                    }
-                    $stmt->close();
-                    
-                    // 5. Insert Score
-                    // NOTE: 'instructor' column here receives the score (decimal)
-                    // Used 'd' (double) for satisfaction scores to preserve decimals
-                    $stmt = $conn->prepare("INSERT INTO score (id_subject, id_karyawan, pre, post, statis_subject, instructor, statis_infras) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->bind_param("iiiiddd", $id_subject, $id_karyawan, $pre_score, $post_score, $satis_subject, $satis_instructor, $satis_infras);
-                    $stmt->execute();
-                    $stmt->close();
-                    
-                    $rows_processed++;
-                }
-                
-                $conn->commit();
-                $status = 'Success';
-                
-            } catch (Exception $e) {
-                $conn->rollback();
-                $status = 'Failed';
-                $error_msg = $e->getMessage();
-            }
-            
-            // Update uploads table
-            $stmt = $conn->prepare("INSERT INTO uploads (file_name, uploaded_by, status, rows_processed) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("sssi", $file_name, $uploaded_by, $status, $rows_processed);
-            $stmt->execute();
-            $stmt->close();
-            
-            $conn->close();
-            
-            if ($status == 'Success') {
-                header('Location: upload.php?success=' . urlencode('File uploaded and processed: ' . $rows_processed . ' rows'));
-            } else {
-                header('Location: upload.php?error=' . urlencode('Processing failed: ' . $error_msg));
-            }
-            exit;
-            
-        } else {
-            $conn->close();
-            header('Location: upload.php?error=' . urlencode('Failed to save file'));
-            exit;
-        }
-    } else {
-        $conn->close();
-        header('Location: upload.php?error=' . urlencode('No file selected'));
-        exit;
-    }
-} else {
-    // If not POST, you might want to display the form here or redirect
-    // For now, mirroring the logic to error out if accessed directly without POST
-    // Or you can include the HTML form below this PHP block if it's a single file.
-}
+// Fetch recent uploads
+$sql = "SELECT * FROM uploads ORDER BY upload_time DESC LIMIT 10";
+$result = $conn->query($sql);
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GGF - Upload Data</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/icons/icon.png">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Poppins", sans-serif; }
+        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
+        .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; }
+        .navbar { background-color: #197b40; height: 70px; border-radius: 50px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin-bottom: 30px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); }
+        .logo-section img { height: 40px; }
+        .nav-links { display: flex; gap: 30px; align-items: center; }
+        .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
+        .nav-links a:hover { opacity: 1; }
+        .nav-links a.active { background: white; color: #197b40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
+        .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
+        .avatar-circle { width: 35px; height: 35px; background-color: #ff9a02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+        .alert { padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease-out; }
+        .alert-success { background-color: #d1fae5; color: #065f46; border-left: 4px solid #10b981; }
+        .alert-error { background-color: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+        .alert-warning { background-color: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .content-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); margin-bottom: 50px; padding: 40px; }
+        .card-header { margin-bottom: 25px; }
+        .card-title { font-size: 20px; font-weight: 700; color: #197b40; }
+        .instruction-box { background-color: #e8f5e9; border-left: 5px solid #197b40; padding: 20px; border-radius: 10px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+        .instruction-text h4 { color: #197b40; margin-bottom: 5px; font-weight: 700; font-size: 14px; }
+        .instruction-text p { color: #555; font-size: 13px; margin: 0; }
+        .upload-zone { border: 2px dashed #cbd5e1; border-radius: 20px; background-color: #fafafa; padding: 50px; text-align: center; transition: all 0.3s; margin-bottom: 30px; cursor: pointer; }
+        .upload-zone:hover { border-color: #197b40; background-color: #f0fdf4; }
+        .upload-zone.file-selected { border-color: #197b40; background-color: #f0fdf4; }
+        .upload-icon-circle { width: 70px; height: 70px; background-color: #e8f5e9; color: #197b40; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; }
+        .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #333; }
+        .upload-subtitle { color: #888; font-size: 13px; margin-bottom: 10px; }
+        .btn-snake { position: relative; background: #197b40; color: white; border: none; padding: 10px 24px; border-radius: 25px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s, color 0.2s; overflow: visible; font-size: 13px; }
+        .btn-snake.secondary { background: white; color: #197b40; border: 1px solid #197b40; }
+        .btn-snake.disabled { background: #cbd5e1; color: white; cursor: not-allowed; border: none; }
+        .btn-snake span, .btn-snake i, .btn-snake svg.lucide { position: relative; z-index: 2; }
+        .btn-snake .snake-border { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; z-index: 1; }
+        .btn-snake .snake-border rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #ff9a02; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
+        .btn-snake:not(.disabled):not(.secondary):hover { background: #145a32; color: white; }
+        .btn-snake.secondary:hover { background: #e8f5e9; color: #197b40; }
+        .btn-snake:not(.disabled):hover .snake-border rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
+        @keyframes snakeBorder { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
+        .table-section-title { margin-bottom: 20px; font-size: 16px; font-weight: 700; color: #333; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 13px; color: #888; padding: 15px 0; border-bottom: 1px solid #eee; }
+        td { padding: 20px 0; font-size: 14px; color: #333; border-bottom: 1px solid #f9f9f9; }
+        .file-cell { display: flex; align-items: center; gap: 12px; }
+        .icon-box { background: #e8f5e9; color: #197b40; padding: 8px; border-radius: 8px; display: flex; align-items: center; }
+        .icon-box.csv { background: #fff3e0; color: #f57c00; }
+        .file-name-text { font-weight: 700; }
+        .badge { padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; }
+        .status-success { background: #d1fae5; color: #065f46; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .row-count { font-weight: bold; color: #197b40; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <nav class="navbar">
+            <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="reports.html">Reports</a>
+                <a href="upload.php" class="active">Upload Data</a>
+            </div>
+            <div class="user-profile"><div class="avatar-circle">AD</div></div>
+        </nav>
+
+        <div class="content-card">
+            <div class="card-header">
+                <div class="card-title">Upload Data</div>
+            </div>
+
+            <div id="alertContainer"></div>
+
+            <div class="instruction-box">
+                <div class="instruction-text">
+                    <h4>Before you upload</h4>
+                    <p>To ensure data accuracy, please use the standardized Excel template.</p>
+                </div>
+                <form action="download_template.php" method="POST">
+                    <button type="submit" class="btn-snake secondary">
+                        <i data-lucide="download" style="width: 14px"></i>
+                        <span>Download Template</span>
+                        <svg class="snake-border"><rect x="0" y="0"></rect></svg>
+                    </button>
+                </form>
+            </div>
+
+            <form action="process_upload.php" method="POST" enctype="multipart/form-data" id="uploadForm">
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileToUpload').click()">
+                    <div class="upload-icon-circle">
+                        <img src="/icons/upload.ico" style="width: 32px; height: 32px; transform: scale(1.8); margin-right: 4px;">
+                    </div>
+                    <div class="upload-title">Drag &amp; drop your file here or click to browse</div>
+                    <div class="upload-subtitle" id="fileNameDisplay">Supported formats: .XLSX, .CSV (Max 10MB)</div>
+                    <input type="file" name="fileToUpload" id="fileToUpload" accept=".xlsx,.csv" style="display: none">
+                </div>
+
+                <div style="display: flex; justify-content: center; margin-bottom: 40px">
+                    <button type="submit" class="btn-snake disabled" id="uploadBtn" disabled>
+                        <span>Upload Data</span>
+                        <svg class="snake-border"><rect x="0" y="0"></rect></svg>
+                    </button>
+                </div>
+            </form>
+
+            <div class="table-section-title">Recent Uploads</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date &amp; Time</th>
+                        <th>Filename</th>
+                        <th>Uploaded By</th>
+                        <th>Status</th>
+                        <th>Rows Processed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    if ($result && $result->num_rows > 0) {
+                        while($row = $result->fetch_assoc()) {
+                            $file_ext = strtolower(pathinfo($row['file_name'], PATHINFO_EXTENSION));
+                            $icon_class = ($file_ext == 'csv') ? 'csv' : '';
+                            $icon_name = ($file_ext == 'csv') ? 'file-text' : 'file-spreadsheet';
+                            $status_class = ($row['status'] == 'Success') ? 'status-success' : 'status-failed';
+                            $date = date('Y-m-d H:i', strtotime($row['upload_time']));
+                            
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($date) . "</td>";
+                            echo "<td><div class='file-cell'><div class='icon-box {$icon_class}'><i data-lucide='{$icon_name}' style='width: 18px'></i></div><span class='file-name-text'>" . htmlspecialchars($row['file_name']) . "</span></div></td>";
+                            echo "<td>" . htmlspecialchars($row['uploaded_by']) . "</td>";
+                            echo "<td><span class='badge {$status_class}'>" . htmlspecialchars($row['status']) . "</span></td>";
+                            echo "<td><span class='row-count'>" . htmlspecialchars($row['rows_processed']) . "</span></td>";
+                            echo "</tr>";
+                        }
+                    } else {
+                        echo "<tr><td colspan='5' class='empty-state'>No uploads yet. Upload your first file above!</td></tr>";
+                    }
+                    $conn->close();
+                    ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        lucide.createIcons();
+
+        const fileInput = document.getElementById('fileToUpload');
+        const uploadZone = document.getElementById('uploadZone');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const uploadBtn = document.getElementById('uploadBtn');
+
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const file = this.files[0];
+                fileNameDisplay.textContent = 'Selected: ' + file.name;
+                fileNameDisplay.style.fontWeight = 'bold';
+                fileNameDisplay.style.color = '#197b40';
+                uploadZone.classList.add('file-selected');
+                uploadBtn.disabled = false;
+                uploadBtn.classList.remove('disabled');
+            }
+        });
+
+        uploadZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#197b40';
+            this.style.backgroundColor = '#f0fdf4';
+        });
+
+        uploadZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            if (!fileInput.files || !fileInput.files[0]) {
+                this.style.borderColor = '#cbd5e1';
+                this.style.backgroundColor = '#fafafa';
+            }
+        });
+
+        uploadZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                const event = new Event('change');
+                fileInput.dispatchEvent(event);
+            }
+        });
+
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const alertContainer = document.getElementById('alertContainer');
+            
+            if (urlParams.has('success')) {
+                showAlert('success', urlParams.get('success'));
+            } else if (urlParams.has('error')) {
+                showAlert('error', urlParams.get('error'));
+            } else if (urlParams.has('warning')) {
+                showAlert('warning', urlParams.get('warning'));
+            }
+            
+            if (urlParams.has('success') || urlParams.has('error') || urlParams.has('warning')) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+
+        function showAlert(type, message) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertClass = 'alert-' + type;
+            const iconName = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'alert-triangle';
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert ' + alertClass;
+            alertDiv.innerHTML = '<i data-lucide="' + iconName + '" style="width: 20px;"></i><span>' + message + '</span>';
+            
+            alertContainer.appendChild(alertDiv);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                alertDiv.style.opacity = '0';
+                setTimeout(() => alertDiv.remove(), 300);
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

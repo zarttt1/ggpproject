@@ -43,7 +43,8 @@
         .form-group { margin-bottom: 20px; text-align: left; }
         label { display: block; font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px; }
 
-        input[type="email"], input[type="password"] {
+        /* CHANGED: Removed input[type="email"] selector, kept standard text input style */
+        input[type="text"], input[type="password"] {
             width: 100%;
             padding: 12px 15px;
             border: 1px solid #ccc;
@@ -123,8 +124,8 @@
 
         <form action="login_process.php" method="POST">
             <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
             </div>
 
             <div class="form-group">
