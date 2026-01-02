@@ -12,28 +12,21 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
-    
-    // 🔥 DISABLE STRICT MODE (Crucial Fix)
-    // This stops "Data Truncated" warnings from crashing the script
+    // DISABLE STRICT MODE
     $pdo->exec("SET sql_mode = ''");
-    
 } catch (\PDOException $e) {
     die("❌ Connection Failed: " . $e->getMessage());
 }
 
-// 2. AUTO-FIX DATABASE STRUCTURE
+// 2. AUTO-FIX DATABASE
 try {
-    // Fix Employee ID length
     $pdo->exec("ALTER TABLE karyawan MODIFY index_karyawan VARCHAR(100)");
-    // Fix Score decimals
     $pdo->exec("ALTER TABLE score MODIFY pre FLOAT, MODIFY post FLOAT");
-    // Fix Credit Hour decimals
     $pdo->exec("ALTER TABLE training MODIFY credit_hour FLOAT");
-    // Fix Satis decimals (Ensure they are DOUBLE to hold 8.958333333)
     $pdo->exec("ALTER TABLE score MODIFY statis_subject DOUBLE, MODIFY instructor DOUBLE, MODIFY statis_infras DOUBLE");
-} catch (Exception $e) { /* Ignore if already fixed */ }
+} catch (Exception $e) { /* Ignore */ }
 
-// 3. HELPER: Detect CSV Delimiter
+// 3. HELPER
 function detectDelimiter($file) {
     $handle = fopen($file, "r");
     $line = fgets($handle);
@@ -41,7 +34,7 @@ function detectDelimiter($file) {
     return (substr_count($line, ';') > substr_count($line, ',')) ? ';' : ',';
 }
 
-// 4. MAIN IMPORT PROCESS
+// 4. MAIN PROCESS
 $report = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
     $startTime = microtime(true);
@@ -61,13 +54,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
         // B. STREAM CSV
         if (($handle = fopen($file, "r")) !== FALSE) {
             $stmt = $pdo->prepare("INSERT INTO temp_import VALUES (" . str_repeat("?,", 17) . "?)");
-            fgetcsv($handle, 0, $delimiter); // Skip Header
+            
+            // 🛑 SKIP HEADER (Row A1)
+            fgetcsv($handle, 0, $delimiter); 
             
             $pdo->beginTransaction();
             while (($data = fgetcsv($handle, 10000, $delimiter)) !== FALSE) {
-                // Safety: Force 18 columns
                 $data = array_slice($data, 0, 18);
                 $data = array_pad($data, 18, null);
+                // Skip completely empty rows
                 if (count(array_filter($data)) == 0) continue; 
                 $stmt->execute($data);
             }
@@ -75,19 +70,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
             fclose($handle);
         }
 
-        // C. DISTRIBUTE DATA
+        // C. DISTRIBUTE DATA (Allows '0', Blocks '')
         $pdo->beginTransaction();
 
         // 1. BU
         $pdo->exec("INSERT INTO bu (nama_bu)
             SELECT DISTINCT TRIM(bu) FROM temp_import t
-            WHERE bu IS NOT NULL AND bu != '' 
+            WHERE bu IS NOT NULL 
+            AND TRIM(bu) != '' 
             AND NOT EXISTS (SELECT 1 FROM bu b WHERE b.nama_bu = TRIM(t.bu) COLLATE utf8mb4_general_ci)");
 
         // 2. Func
         $pdo->exec("INSERT INTO func (func_n1, func_n2)
             SELECT DISTINCT TRIM(func), TRIM(func_n2) FROM temp_import t
             WHERE func IS NOT NULL 
+            AND TRIM(func) != ''
             AND NOT EXISTS (SELECT 1 FROM func f WHERE f.func_n1 = TRIM(t.func) COLLATE utf8mb4_general_ci AND IFNULL(f.func_n2,'') = IFNULL(TRIM(t.func_n2),'') COLLATE utf8mb4_general_ci)");
 
         // 3. Employees
@@ -96,18 +93,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
             FROM temp_import t
             JOIN bu b ON TRIM(t.bu) = b.nama_bu COLLATE utf8mb4_general_ci
             JOIN func f ON TRIM(t.func) = f.func_n1 COLLATE utf8mb4_general_ci AND IFNULL(TRIM(t.func_n2),'') = IFNULL(f.func_n2,'') COLLATE utf8mb4_general_ci
-            WHERE t.indeks IS NOT NULL
+            WHERE t.indeks IS NOT NULL AND TRIM(t.indeks) != ''
             AND NOT EXISTS (SELECT 1 FROM karyawan k WHERE k.index_karyawan = TRIM(t.indeks) COLLATE utf8mb4_general_ci)");
 
         // 4. Training
         $pdo->exec("INSERT INTO training (id_bu, id_func, nama_subject, date_start, date_end, credit_hour, place, method, jenis)
             SELECT DISTINCT b.id_bu, f.id_func, CONCAT(TRIM(t.subject), ' (', TRIM(t.class_code), ')'), 
-            
             CASE WHEN t.date_start LIKE '%/%' THEN STR_TO_DATE(t.date_start, '%d/%m/%Y') ELSE STR_TO_DATE(t.date_start, '%Y-%m-%d') END,
             CASE WHEN t.date_end LIKE '%/%'   THEN STR_TO_DATE(t.date_end, '%d/%m/%Y')   ELSE STR_TO_DATE(t.date_end, '%Y-%m-%d') END,
-            
             NULLIF(REPLACE(TRIM(t.credit_hours), ',', '.'), ''), 
-            
             t.place, t.method, t.jenis
             FROM temp_import t
             JOIN bu b ON TRIM(t.bu) = b.nama_bu COLLATE utf8mb4_general_ci
@@ -119,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                 AND tr.id_bu = b.id_bu
             )");
 
-        // 5. Score (FIXED ALL NUMERIC COLUMNS)
+        // 5. Score
         $pdo->exec("INSERT INTO score (id_subject, id_karyawan, pre, post, statis_subject, instructor, statis_infras)
             SELECT DISTINCT tr.id_subject, k.id_karyawan, 
             NULLIF(REPLACE(TRIM(t.prescore), ',', '.'), ''), 
@@ -151,9 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
 
 <!DOCTYPE html>
 <html>
-<head><title>Bulletproof Importer</title></head>
+<head><title>Clean Data Importer</title></head>
 <body style="font-family: sans-serif; padding: 50px;">
-    <h2>🚀 Bulletproof Importer (Strict Mode OFF)</h2>
+    <h2>🚀 Clean Data Importer (Corrected)</h2>
     <?= $report ?>
     <div style="background: #f4f4f4; padding: 20px; border-radius: 8px; width: 400px;">
         <form method="post" enctype="multipart/form-data">
