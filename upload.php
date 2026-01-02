@@ -1,20 +1,3 @@
-<?php
-// Database connection
-$servername = "localhost";
-$username = "root";
-$password = "Admin123";
-$dbname = "trainingc";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
-// Fetch recent uploads
-$sql = "SELECT * FROM uploads ORDER BY upload_time DESC LIMIT 10";
-$result = $conn->query($sql);
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,6 +10,8 @@ $result = $conn->query($sql);
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Poppins", sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
         .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; }
+        
+        /* NAVBAR */
         .navbar { background-color: #197b40; height: 70px; border-radius: 50px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin-bottom: 30px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
@@ -35,23 +20,31 @@ $result = $conn->query($sql);
         .nav-links a.active { background: white; color: #197b40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
         .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
         .avatar-circle { width: 35px; height: 35px; background-color: #ff9a02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+        
+        /* ALERTS */
         .alert { padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease-out; }
         .alert-success { background-color: #d1fae5; color: #065f46; border-left: 4px solid #10b981; }
         .alert-error { background-color: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
         .alert-warning { background-color: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* CONTENT */
         .content-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); margin-bottom: 50px; padding: 40px; }
         .card-header { margin-bottom: 25px; }
         .card-title { font-size: 20px; font-weight: 700; color: #197b40; }
         .instruction-box { background-color: #e8f5e9; border-left: 5px solid #197b40; padding: 20px; border-radius: 10px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
         .instruction-text h4 { color: #197b40; margin-bottom: 5px; font-weight: 700; font-size: 14px; }
         .instruction-text p { color: #555; font-size: 13px; margin: 0; }
+        
+        /* UPLOAD ZONE */
         .upload-zone { border: 2px dashed #cbd5e1; border-radius: 20px; background-color: #fafafa; padding: 50px; text-align: center; transition: all 0.3s; margin-bottom: 30px; cursor: pointer; }
         .upload-zone:hover { border-color: #197b40; background-color: #f0fdf4; }
         .upload-zone.file-selected { border-color: #197b40; background-color: #f0fdf4; }
         .upload-icon-circle { width: 70px; height: 70px; background-color: #e8f5e9; color: #197b40; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; }
         .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #333; }
         .upload-subtitle { color: #888; font-size: 13px; margin-bottom: 10px; }
+        
+        /* BUTTONS */
         .btn-snake { position: relative; background: #197b40; color: white; border: none; padding: 10px 24px; border-radius: 25px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s, color 0.2s; overflow: visible; font-size: 13px; }
         .btn-snake.secondary { background: white; color: #197b40; border: 1px solid #197b40; }
         .btn-snake.disabled { background: #cbd5e1; color: white; cursor: not-allowed; border: none; }
@@ -62,6 +55,8 @@ $result = $conn->query($sql);
         .btn-snake.secondary:hover { background: #e8f5e9; color: #197b40; }
         .btn-snake:not(.disabled):hover .snake-border rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
         @keyframes snakeBorder { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
+        
+        /* TABLE */
         .table-section-title { margin-bottom: 20px; font-size: 16px; font-weight: 700; color: #333; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; font-size: 13px; color: #888; padding: 15px 0; border-bottom: 1px solid #eee; }
@@ -75,9 +70,63 @@ $result = $conn->query($sql);
         .status-failed { background: #fee2e2; color: #991b1b; }
         .row-count { font-weight: bold; color: #197b40; }
         .empty-state { text-align: center; padding: 40px; color: #999; }
+
+        /* --- NEW LOADING OVERLAY STYLES --- */
+        .loading-overlay {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 5px solid #e0e0e0;
+            border-top: 5px solid #197b40;
+            border-right: 5px solid #ff9a02;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text h3 {
+            color: #197b40;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .loading-text p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">
+            <h3>Processing Data...</h3>
+            <p>Please wait, do not close this window.</p>
+            <p style="font-size: 12px; color: #999; margin-top:5px;">Processing large files may take a minute.</p>
+        </div>
+    </div>
+
     <div class="main-wrapper">
         <nav class="navbar">
             <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
@@ -141,6 +190,13 @@ $result = $conn->query($sql);
                 </thead>
                 <tbody>
                     <?php
+                    // Fetch recent uploads for display
+                    $conn = new mysqli("localhost", "root", "Admin123", "trainingc");
+                    if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
+                    
+                    $sql = "SELECT * FROM uploads ORDER BY upload_time DESC LIMIT 10";
+                    $result = $conn->query($sql);
+
                     if ($result && $result->num_rows > 0) {
                         while($row = $result->fetch_assoc()) {
                             $file_ext = strtolower(pathinfo($row['file_name'], PATHINFO_EXTENSION));
@@ -175,6 +231,15 @@ $result = $conn->query($sql);
         const uploadZone = document.getElementById('uploadZone');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
         const uploadBtn = document.getElementById('uploadBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // Show Loading Overlay on Submit
+        uploadForm.addEventListener('submit', function() {
+            if (!uploadBtn.disabled) {
+                loadingOverlay.style.display = 'flex';
+            }
+        });
 
         fileInput.addEventListener('change', function() {
             if (this.files && this.files[0]) {

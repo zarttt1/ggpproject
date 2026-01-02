@@ -1,219 +1,205 @@
 <?php
-// Enable error reporting for debugging
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// process_upload.php
 
-// Include PhpSpreadsheet library (you need to install this via Composer)
-// Run: composer require phpoffice/phpspreadsheet
-require 'vendor/autoload.php';
+// DB CONFIGURATION
+$host = 'localhost';
+$db   = 'trainingc';
+$user = 'root';
+$pass = 'Admin123';
+$charset = 'utf8mb4';
 
-use PhpOffice\PhpSpreadsheet\IOFactory;
-
-// Database connection
-$servername = "localhost";
-$username = "root";
-$password = "Admin123";
-$dbname = "trainingc";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    header('Location: upload.php?error=' . urlencode('Database connection failed'));
-    exit;
+// Helper function to redirect with message
+function redirect($type, $message) {
+    // Redirect back to upload.php with query params
+    header("Location: upload.php?" . $type . "=" . urlencode($message));
+    exit();
 }
 
-$allowed_extensions = ['xlsx', 'csv'];
-$upload_dir = 'uploads/';
-
-if (!file_exists($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=$charset", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (PDOException $e) { 
+    redirect('error', "Connection Failed: " . $e->getMessage());
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_FILES['fileToUpload']) && $_FILES['fileToUpload']['error'] !== UPLOAD_ERR_NO_FILE) {
-        
-        $file_name = $_FILES['fileToUpload']['name'];
-        $file_tmp = $_FILES['fileToUpload']['tmp_name'];
-        $file_size = $_FILES['fileToUpload']['size'];
-        $file_error = $_FILES['fileToUpload']['error'];
-        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+function detectDelimiter($file) {
+    $handle = fopen($file, "r");
+    $line = fgets($handle);
+    fclose($handle);
+    // Determine delimiter by counting occurrences
+    return (substr_count($line, ';') > substr_count($line, ',')) ? ';' : ',';
+}
 
-        // Validation
-        if ($file_size > 10 * 1024 * 1024) {
-            header('Location: upload.php?error=' . urlencode('File size exceeds 10MB limit'));
-            exit;
-        }
+// Safely convert CSV numbers to MySQL Float
+function cleanFloat($val) {
+    $val = trim($val ?? '');
+    if ($val === '') return null;           // Handle empty
+    $val = str_replace(',', '.', $val);     // Handle 3,5 -> 3.5
+    return is_numeric($val) ? $val : null;  // Return number or null
+}
 
-        if (!in_array($file_ext, $allowed_extensions)) {
-            header('Location: upload.php?error=' . urlencode('Only .xlsx and .csv files are allowed'));
-            exit;
-        }
+// MAIN PROCESSING LOGIC
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-        if ($file_error !== 0) {
-            header('Location: upload.php?error=' . urlencode('File upload error'));
-            exit;
-        }
+    // Check if file was uploaded without errors
+    if (!isset($_FILES['fileToUpload']) || $_FILES['fileToUpload']['error'] !== UPLOAD_ERR_OK) {
+        redirect('error', "No file uploaded or upload error occurred.");
+    }
 
-        // Save file
-        $new_file_name = uniqid('', true) . '.' . $file_ext;
-        $upload_path = $upload_dir . $new_file_name;
+    $startTime = microtime(true);
+    $file = $_FILES['fileToUpload']['tmp_name'];
+    $originalFileName = $_FILES['fileToUpload']['name']; // For logging purposes
+    
+    // Validate File Type (Simple Check)
+    $ext = strtolower(pathinfo($originalFileName, PATHINFO_EXTENSION));
+    if($ext !== 'csv') {
+        redirect('error', "Only CSV files are currently supported by this processor.");
+    }
 
-        if (move_uploaded_file($file_tmp, $upload_path)) {
+    $delimiter = detectDelimiter($file);
+
+    try {
+        if (($handle = fopen($file, "r")) !== FALSE) {
+            $pdo->beginTransaction();
             
-            $uploaded_by = 'Admin User';
-            $status = 'Processing';
-            $rows_processed = 0;
-            
-            try {
-                // Load the spreadsheet
-                $spreadsheet = IOFactory::load($upload_path);
-                $sheet = $spreadsheet->getActiveSheet();
-                $data = $sheet->toArray(null, true, true, true);
+            // Skip Header
+            fgetcsv($handle, 0, $delimiter);
+
+            $rowCount = 0;
+
+            // PREPARE STATEMENTS
+            $stmtCheckBU = $pdo->prepare("SELECT id_bu FROM bu WHERE nama_bu = ? LIMIT 1");
+            $stmtInsBU   = $pdo->prepare("INSERT INTO bu (nama_bu) VALUES (?)");
+
+            $stmtCheckFunc = $pdo->prepare("SELECT id_func FROM func WHERE func_n1 = ? AND func_n2 = ? AND func_n3 = ? LIMIT 1");
+            $stmtInsFunc   = $pdo->prepare("INSERT INTO func (func_n1, func_n2, func_n3) VALUES (?, ?, ?)");
+
+            $stmtCheckKar = $pdo->prepare("SELECT id_karyawan FROM karyawan WHERE index_karyawan = ? LIMIT 1");
+            $stmtInsKar   = $pdo->prepare("INSERT INTO karyawan (index_karyawan, nama_karyawan) VALUES (?, ?)");
+
+            $stmtCheckTrain = $pdo->prepare("SELECT id_training FROM training WHERE nama_training = ? LIMIT 1");
+            $stmtInsTrain   = $pdo->prepare("INSERT INTO training (nama_training, jenis) VALUES (?, ?)");
+
+            $stmtCheckSess = $pdo->prepare("SELECT id_session FROM training_session WHERE id_training = ? AND class = ? AND date_start = ? LIMIT 1");
+            $stmtInsSess   = $pdo->prepare("INSERT INTO training_session (id_training, class, date_start, date_end, credit_hour, place, method) VALUES (?, ?, ?, ?, ?, ?, ?)");
+
+            $stmtCheckScore = $pdo->prepare("SELECT id_score FROM score WHERE id_session = ? AND id_karyawan = ? LIMIT 1");
+            $stmtInsScore   = $pdo->prepare("INSERT INTO score (id_session, id_karyawan, id_bu, id_func, pre, post, statis_subject, instructor, statis_infras) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+            while (($data = fgetcsv($handle, 10000, $delimiter)) !== FALSE) {
                 
-                // Remove header row
-                array_shift($data);
+                // 1. EXTRACT RAW DATA
+                $indeks     = trim($data[0] ?? '');
+                $nama       = trim($data[1] ?? '');
+                $subject    = trim($data[2] ?? '');
+                $date_start = trim($data[3] ?? '');
+                $date_end   = trim($data[4] ?? '');
+                // SANITIZE NUMBERS HERE
+                $credit     = cleanFloat($data[5] ?? ''); 
                 
-                $conn->begin_transaction();
+                $place      = trim($data[6] ?? '');
+                $method     = trim($data[7] ?? '');
+                $class      = trim($data[8] ?? '');
                 
-                foreach ($data as $row) {
-                    // Skip empty rows
-                    if (empty($row['A']) || empty($row['B'])) continue;
-                    
-                    // Extract data from columns (adjust based on your Excel structure)
-                    $index_karyawan = $row['A'];
-                    $nama_karyawan = $row['B'];
-                    $nama_subject = $row['C'];
-                    $date_start = $row['D'];
-                    $date_end = $row['E'];
-                    $credit_hour = $row['F'];
-                    $place = $row['G'];
-                    $method = $row['H'];
-                    $class = $row['I'];
-                    $satis_subject = $row['J'];
-                    $satis_instructor = $row['K'];
-                    $satis_infras = $row['L'];
-                    $pre_score = $row['M'];
-                    $post_score = $row['N'];
-                    $bu_name = $row['O'];
-                    $func_n1 = $row['P'];
-                    $func_n2 = $row['Q'];
-                    $jenis = $row['R'];
-                    
-                    // 1. Insert or get BU
-                    $stmt = $conn->prepare("SELECT id_bu FROM bu WHERE nama_bu = ?");
-                    $stmt->bind_param("s", $bu_name);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO bu (nama_bu) VALUES (?)");
-                        $stmt2->bind_param("s", $bu_name);
-                        $stmt2->execute();
-                        $id_bu = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_bu = $result->fetch_assoc()['id_bu'];
-                    }
-                    $stmt->close();
-                    
-                    // 2. Insert or get Function
-                    $stmt = $conn->prepare("SELECT id_func FROM func WHERE func_n1 = ? AND func_n2 = ?");
-                    $stmt->bind_param("ss", $func_n1, $func_n2);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO func (func_n1, func_n2) VALUES (?, ?)");
-                        $stmt2->bind_param("ss", $func_n1, $func_n2);
-                        $stmt2->execute();
-                        $id_func = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_func = $result->fetch_assoc()['id_func'];
-                    }
-                    $stmt->close();
-                    
-                    // 3. Insert or get Karyawan
-                    $stmt = $conn->prepare("SELECT id_karyawan FROM karyawan WHERE index_karyawan = ?");
-                    $stmt->bind_param("i", $index_karyawan);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO karyawan (id_bu, id_func, index_karyawan, nama_karyawan) VALUES (?, ?, ?, ?)");
-                        $stmt2->bind_param("iiis", $id_bu, $id_func, $index_karyawan, $nama_karyawan);
-                        $stmt2->execute();
-                        $id_karyawan = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_karyawan = $result->fetch_assoc()['id_karyawan'];
-                    }
-                    $stmt->close();
-                    
-                    // 4. Insert or get Training Subject
-                    $stmt = $conn->prepare("SELECT id_subject FROM training WHERE nama_subject = ? AND date_start = ?");
-                    $stmt->bind_param("ss", $nama_subject, $date_start);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    
-                    if ($result->num_rows == 0) {
-                        $stmt2 = $conn->prepare("INSERT INTO training (id_bu, id_func, nama_subject, date_start, date_end, credit_hour, place, method, jenis, instructor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $instructor = $satis_instructor; // Assuming instructor name is in this column
-                        $stmt2->bind_param("iisssdssss", $id_bu, $id_func, $nama_subject, $date_start, $date_end, $credit_hour, $place, $method, $jenis, $instructor);
-                        $stmt2->execute();
-                        $id_subject = $conn->insert_id;
-                        $stmt2->close();
-                    } else {
-                        $id_subject = $result->fetch_assoc()['id_subject'];
-                    }
-                    $stmt->close();
-                    
-                    // 5. Insert Score
-                    $stmt = $conn->prepare("INSERT INTO score (id_subject, id_karyawan, pre, post, statis_subject, instructor, statis_infras) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->bind_param("iiiiisi", $id_subject, $id_karyawan, $pre_score, $post_score, $satis_subject, $satis_instructor, $satis_infras);
-                    $stmt->execute();
-                    $stmt->close();
-                    
-                    $rows_processed++;
+                // SANITIZE SCORES
+                $sat_sub    = cleanFloat($data[9] ?? '');
+                $sat_ins    = cleanFloat($data[10] ?? '');
+                $sat_inf    = cleanFloat($data[11] ?? '');
+                $pre        = cleanFloat($data[12] ?? '');
+                $post       = cleanFloat($data[13] ?? '');
+                
+                $nama_bu    = trim($data[14] ?? '');
+                $func_n1    = trim($data[15] ?? '');
+                $func_n2    = trim($data[16] ?? '');
+                $jenis      = trim($data[17] ?? '');
+                $func_n3    = trim($data[18] ?? '');
+
+                if ($indeks == '' || $subject == '') continue;
+
+                // --- LOGIC START ---
+
+                // 2. BU
+                $stmtCheckBU->execute([$nama_bu]);
+                $id_bu = $stmtCheckBU->fetchColumn();
+                if (!$id_bu) {
+                    $stmtInsBU->execute([$nama_bu]);
+                    $id_bu = $pdo->lastInsertId();
                 }
-                
-                $conn->commit();
-                $status = 'Success';
-                
-            } catch (Exception $e) {
-                $conn->rollback();
-                $status = 'Failed';
-                $error_msg = $e->getMessage();
+
+                // 3. FUNC
+                $stmtCheckFunc->execute([$func_n1, $func_n2, $func_n3]);
+                $id_func = $stmtCheckFunc->fetchColumn();
+                if (!$id_func) {
+                    $stmtInsFunc->execute([$func_n1, $func_n2, $func_n3]);
+                    $id_func = $pdo->lastInsertId();
+                }
+
+                // 4. KARYAWAN (ID Only Check)
+                $stmtCheckKar->execute([$indeks]);
+                $id_karyawan = $stmtCheckKar->fetchColumn();
+                if (!$id_karyawan) {
+                    $stmtInsKar->execute([$indeks, $nama]);
+                    $id_karyawan = $pdo->lastInsertId();
+                }
+
+                // 5. TRAINING
+                $stmtCheckTrain->execute([$subject]);
+                $id_training = $stmtCheckTrain->fetchColumn();
+                if (!$id_training) {
+                    $stmtInsTrain->execute([$subject, $jenis]);
+                    $id_training = $pdo->lastInsertId();
+                }
+
+                // 6. SESSION
+                $d_start = (!empty($date_start)) ? date('Y-m-d', strtotime(str_replace('/', '-', $date_start))) : null;
+                $d_end   = (!empty($date_end))   ? date('Y-m-d', strtotime(str_replace('/', '-', $date_end)))   : null;
+
+                $stmtCheckSess->execute([$id_training, $class, $d_start]);
+                $id_session = $stmtCheckSess->fetchColumn();
+                if (!$id_session) {
+                    // $credit is now safe (cleaned float or null)
+                    $stmtInsSess->execute([$id_training, $class, $d_start, $d_end, $credit, $place, $method]);
+                    $id_session = $pdo->lastInsertId();
+                }
+
+                // 7. SCORE
+                $stmtCheckScore->execute([$id_session, $id_karyawan]);
+                if (!$stmtCheckScore->fetchColumn()) {
+                    $stmtInsScore->execute([
+                        $id_session, $id_karyawan, $id_bu, $id_func,
+                        $pre, $post, $sat_sub, $sat_ins, $sat_inf
+                    ]);
+                    $rowCount++;
+                }
             }
             
-            // Update uploads table
-            $stmt = $conn->prepare("INSERT INTO uploads (file_name, uploaded_by, status, rows_processed) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("sssi", $file_name, $uploaded_by, $status, $rows_processed);
-            $stmt->execute();
-            $stmt->close();
+            // 8. LOG UPLOAD TO DB (For the table in your UI)
+            $stmtLogUpload = $pdo->prepare("INSERT INTO uploads (file_name, uploaded_by, status, rows_processed) VALUES (?, ?, ?, ?)");
+            $stmtLogUpload->execute([$originalFileName, 'Admin', 'Success', $rowCount]); // Replace 'Admin' with session user if available
+
+            $pdo->commit();
+            fclose($handle);
             
-            $conn->close();
-            
-            if ($status == 'Success') {
-                header('Location: upload.php?success=' . urlencode('File uploaded and processed: ' . $rows_processed . ' rows'));
-            } else {
-                header('Location: upload.php?error=' . urlencode('Processing failed: ' . $error_msg));
-            }
-            exit;
+            $time = round(microtime(true) - $startTime, 2);
+            redirect('success', "Processed $rowCount rows in $time seconds.");
             
         } else {
-            $conn->close();
-            header('Location: upload.php?error=' . urlencode('Failed to save file'));
-            exit;
+            throw new Exception("Could not open file.");
         }
-    } else {
-        $conn->close();
-        header('Location: upload.php?error=' . urlencode('No file selected'));
-        exit;
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        
+        // Log failed upload attempt
+        try {
+            $stmtLogFail = $pdo->prepare("INSERT INTO uploads (file_name, uploaded_by, status, rows_processed) VALUES (?, ?, ?, ?)");
+            $stmtLogFail->execute([$originalFileName, 'Admin', 'Failed', 0]);
+        } catch(Exception $logEx) { /* Ignore logging error */ }
+
+        redirect('error', "Error: " . $e->getMessage());
     }
 } else {
-    $conn->close();
-    header('Location: upload.php?error=' . urlencode('Invalid request'));
-    exit;
+    redirect('warning', "Invalid request method.");
 }
 ?>
