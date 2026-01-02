@@ -1,32 +1,20 @@
 <?php
-// 1. DATABASE CONNECTION
+// DB CONFIGURATION
 $host = 'localhost';
 $db   = 'trainingc';
 $user = 'root';
-$pass = 'Admin123'; // <--- CHECK PASSWORD
+$pass = 'Admin123';
 $charset = 'utf8mb4';
+
+$report = "";
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db;charset=$charset", $user, $pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
-    // DISABLE STRICT MODE
-    $pdo->exec("SET sql_mode = ''");
-} catch (\PDOException $e) {
-    die("❌ Connection Failed: " . $e->getMessage());
-}
+} catch (PDOException $e) { die("❌ Connection Failed: " . $e->getMessage()); }
 
-// 2. AUTO-FIX DATABASE
-try {
-    $pdo->exec("ALTER TABLE karyawan MODIFY index_karyawan VARCHAR(100)");
-    $pdo->exec("ALTER TABLE score MODIFY pre FLOAT, MODIFY post FLOAT");
-    $pdo->exec("ALTER TABLE training MODIFY credit_hour FLOAT");
-    $pdo->exec("ALTER TABLE score MODIFY statis_subject DOUBLE, MODIFY instructor DOUBLE, MODIFY statis_infras DOUBLE");
-} catch (Exception $e) { /* Ignore */ }
-
-// 3. HELPER
 function detectDelimiter($file) {
     $handle = fopen($file, "r");
     $line = fgets($handle);
@@ -34,128 +22,167 @@ function detectDelimiter($file) {
     return (substr_count($line, ';') > substr_count($line, ',')) ? ';' : ',';
 }
 
-// 4. MAIN PROCESS
-$report = "";
+// NEW HELPER: Safely convert CSV numbers to MySQL Float
+function cleanFloat($val) {
+    $val = trim($val ?? '');
+    if ($val === '') return null;           // Handle empty
+    $val = str_replace(',', '.', $val);     // Handle 3,5 -> 3.5
+    return is_numeric($val) ? $val : null;  // Return number or null
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
     $startTime = microtime(true);
     $file = $_FILES['csv_file']['tmp_name'];
     $delimiter = detectDelimiter($file);
 
     try {
-        // A. CREATE TEMP TABLE
-        $pdo->exec("DROP TABLE IF EXISTS temp_import");
-        $pdo->exec("CREATE TABLE temp_import (
-            indeks TEXT, name TEXT, subject TEXT, date_start TEXT, date_end TEXT, 
-            credit_hours TEXT, place TEXT, method TEXT, class_code TEXT, 
-            satis_subject TEXT, satis_instructor TEXT, satis_infras TEXT, 
-            prescore TEXT, postscore TEXT, bu TEXT, func TEXT, func_n2 TEXT, jenis TEXT
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-
-        // B. STREAM CSV
         if (($handle = fopen($file, "r")) !== FALSE) {
-            $stmt = $pdo->prepare("INSERT INTO temp_import VALUES (" . str_repeat("?,", 17) . "?)");
-            
-            // 🛑 SKIP HEADER (Row A1)
-            fgetcsv($handle, 0, $delimiter); 
-            
             $pdo->beginTransaction();
+            
+            // Skip Header
+            fgetcsv($handle, 0, $delimiter);
+
+            $rowCount = 0;
+
+            // PREPARE STATEMENTS
+            $stmtCheckBU = $pdo->prepare("SELECT id_bu FROM bu WHERE nama_bu = ? LIMIT 1");
+            $stmtInsBU   = $pdo->prepare("INSERT INTO bu (nama_bu) VALUES (?)");
+
+            $stmtCheckFunc = $pdo->prepare("SELECT id_func FROM func WHERE func_n1 = ? AND func_n2 = ? AND func_n3 = ? LIMIT 1");
+            $stmtInsFunc   = $pdo->prepare("INSERT INTO func (func_n1, func_n2, func_n3) VALUES (?, ?, ?)");
+
+            $stmtCheckKar = $pdo->prepare("SELECT id_karyawan FROM karyawan WHERE index_karyawan = ? LIMIT 1");
+            $stmtInsKar   = $pdo->prepare("INSERT INTO karyawan (index_karyawan, nama_karyawan) VALUES (?, ?)");
+
+            $stmtCheckTrain = $pdo->prepare("SELECT id_training FROM training WHERE nama_training = ? LIMIT 1");
+            $stmtInsTrain   = $pdo->prepare("INSERT INTO training (nama_training, jenis) VALUES (?, ?)");
+
+            $stmtCheckSess = $pdo->prepare("SELECT id_session FROM training_session WHERE id_training = ? AND class = ? AND date_start = ? LIMIT 1");
+            $stmtInsSess   = $pdo->prepare("INSERT INTO training_session (id_training, class, date_start, date_end, credit_hour, place, method) VALUES (?, ?, ?, ?, ?, ?, ?)");
+
+            $stmtCheckScore = $pdo->prepare("SELECT id_score FROM score WHERE id_session = ? AND id_karyawan = ? LIMIT 1");
+            $stmtInsScore   = $pdo->prepare("INSERT INTO score (id_session, id_karyawan, id_bu, id_func, pre, post, statis_subject, instructor, statis_infras) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
             while (($data = fgetcsv($handle, 10000, $delimiter)) !== FALSE) {
-                $data = array_slice($data, 0, 18);
-                $data = array_pad($data, 18, null);
-                // Skip completely empty rows
-                if (count(array_filter($data)) == 0) continue; 
-                $stmt->execute($data);
+                
+                // 1. EXTRACT RAW DATA
+                $indeks     = trim($data[0] ?? '');
+                $nama       = trim($data[1] ?? '');
+                $subject    = trim($data[2] ?? '');
+                $date_start = trim($data[3] ?? '');
+                $date_end   = trim($data[4] ?? '');
+                // SANITIZE NUMBERS HERE
+                $credit     = cleanFloat($data[5] ?? ''); 
+                
+                $place      = trim($data[6] ?? '');
+                $method     = trim($data[7] ?? '');
+                $class      = trim($data[8] ?? '');
+                
+                // SANITIZE SCORES
+                $sat_sub    = cleanFloat($data[9] ?? '');
+                $sat_ins    = cleanFloat($data[10] ?? '');
+                $sat_inf    = cleanFloat($data[11] ?? '');
+                $pre        = cleanFloat($data[12] ?? '');
+                $post       = cleanFloat($data[13] ?? '');
+                
+                $nama_bu    = trim($data[14] ?? '');
+                $func_n1    = trim($data[15] ?? '');
+                $func_n2    = trim($data[16] ?? '');
+                $jenis      = trim($data[17] ?? '');
+                $func_n3    = trim($data[18] ?? '');
+
+                if ($indeks == '' || $subject == '') continue;
+
+                // --- LOGIC START ---
+
+                // 2. BU
+                $stmtCheckBU->execute([$nama_bu]);
+                $id_bu = $stmtCheckBU->fetchColumn();
+                if (!$id_bu) {
+                    $stmtInsBU->execute([$nama_bu]);
+                    $id_bu = $pdo->lastInsertId();
+                }
+
+                // 3. FUNC
+                $stmtCheckFunc->execute([$func_n1, $func_n2, $func_n3]);
+                $id_func = $stmtCheckFunc->fetchColumn();
+                if (!$id_func) {
+                    $stmtInsFunc->execute([$func_n1, $func_n2, $func_n3]);
+                    $id_func = $pdo->lastInsertId();
+                }
+
+                // 4. KARYAWAN (ID Only Check)
+                $stmtCheckKar->execute([$indeks]);
+                $id_karyawan = $stmtCheckKar->fetchColumn();
+                if (!$id_karyawan) {
+                    $stmtInsKar->execute([$indeks, $nama]);
+                    $id_karyawan = $pdo->lastInsertId();
+                }
+
+                // 5. TRAINING
+                $stmtCheckTrain->execute([$subject]);
+                $id_training = $stmtCheckTrain->fetchColumn();
+                if (!$id_training) {
+                    $stmtInsTrain->execute([$subject, $jenis]);
+                    $id_training = $pdo->lastInsertId();
+                }
+
+                // 6. SESSION
+                $d_start = (!empty($date_start)) ? date('Y-m-d', strtotime(str_replace('/', '-', $date_start))) : null;
+                $d_end   = (!empty($date_end))   ? date('Y-m-d', strtotime(str_replace('/', '-', $date_end)))   : null;
+
+                $stmtCheckSess->execute([$id_training, $class, $d_start]);
+                $id_session = $stmtCheckSess->fetchColumn();
+                if (!$id_session) {
+                    // $credit is now safe (cleaned float or null)
+                    $stmtInsSess->execute([$id_training, $class, $d_start, $d_end, $credit, $place, $method]);
+                    $id_session = $pdo->lastInsertId();
+                }
+
+                // 7. SCORE
+                $stmtCheckScore->execute([$id_session, $id_karyawan]);
+                if (!$stmtCheckScore->fetchColumn()) {
+                    $stmtInsScore->execute([
+                        $id_session, $id_karyawan, $id_bu, $id_func,
+                        $pre, $post, $sat_sub, $sat_ins, $sat_inf
+                    ]);
+                    $rowCount++;
+                }
             }
+            
             $pdo->commit();
             fclose($handle);
+            $time = round(microtime(true) - $startTime, 2);
+            $report = "<div class='alert alert-success'>✅ SUCCESS! Processed $rowCount rows in $time seconds.</div>";
         }
-
-        // C. DISTRIBUTE DATA (Allows '0', Blocks '')
-        $pdo->beginTransaction();
-
-        // 1. BU
-        $pdo->exec("INSERT INTO bu (nama_bu)
-            SELECT DISTINCT TRIM(bu) FROM temp_import t
-            WHERE bu IS NOT NULL 
-            AND TRIM(bu) != '' 
-            AND NOT EXISTS (SELECT 1 FROM bu b WHERE b.nama_bu = TRIM(t.bu) COLLATE utf8mb4_general_ci)");
-
-        // 2. Func
-        $pdo->exec("INSERT INTO func (func_n1, func_n2)
-            SELECT DISTINCT TRIM(func), TRIM(func_n2) FROM temp_import t
-            WHERE func IS NOT NULL 
-            AND TRIM(func) != ''
-            AND NOT EXISTS (SELECT 1 FROM func f WHERE f.func_n1 = TRIM(t.func) COLLATE utf8mb4_general_ci AND IFNULL(f.func_n2,'') = IFNULL(TRIM(t.func_n2),'') COLLATE utf8mb4_general_ci)");
-
-        // 3. Employees
-        $pdo->exec("INSERT INTO karyawan (index_karyawan, nama_karyawan, id_bu, id_func)
-            SELECT DISTINCT TRIM(t.indeks), TRIM(t.name), b.id_bu, f.id_func
-            FROM temp_import t
-            JOIN bu b ON TRIM(t.bu) = b.nama_bu COLLATE utf8mb4_general_ci
-            JOIN func f ON TRIM(t.func) = f.func_n1 COLLATE utf8mb4_general_ci AND IFNULL(TRIM(t.func_n2),'') = IFNULL(f.func_n2,'') COLLATE utf8mb4_general_ci
-            WHERE t.indeks IS NOT NULL AND TRIM(t.indeks) != ''
-            AND NOT EXISTS (SELECT 1 FROM karyawan k WHERE k.index_karyawan = TRIM(t.indeks) COLLATE utf8mb4_general_ci)");
-
-        // 4. Training
-        $pdo->exec("INSERT INTO training (id_bu, id_func, nama_subject, date_start, date_end, credit_hour, place, method, jenis)
-            SELECT DISTINCT b.id_bu, f.id_func, CONCAT(TRIM(t.subject), ' (', TRIM(t.class_code), ')'), 
-            CASE WHEN t.date_start LIKE '%/%' THEN STR_TO_DATE(t.date_start, '%d/%m/%Y') ELSE STR_TO_DATE(t.date_start, '%Y-%m-%d') END,
-            CASE WHEN t.date_end LIKE '%/%'   THEN STR_TO_DATE(t.date_end, '%d/%m/%Y')   ELSE STR_TO_DATE(t.date_end, '%Y-%m-%d') END,
-            NULLIF(REPLACE(TRIM(t.credit_hours), ',', '.'), ''), 
-            t.place, t.method, t.jenis
-            FROM temp_import t
-            JOIN bu b ON TRIM(t.bu) = b.nama_bu COLLATE utf8mb4_general_ci
-            JOIN func f ON TRIM(t.func) = f.func_n1 COLLATE utf8mb4_general_ci AND IFNULL(TRIM(t.func_n2),'') = IFNULL(f.func_n2,'') COLLATE utf8mb4_general_ci
-            WHERE NOT EXISTS (
-                SELECT 1 FROM training tr 
-                WHERE tr.nama_subject = CONCAT(TRIM(t.subject), ' (', TRIM(t.class_code), ')') COLLATE utf8mb4_general_ci 
-                AND tr.date_start = (CASE WHEN t.date_start LIKE '%/%' THEN STR_TO_DATE(t.date_start, '%d/%m/%Y') ELSE STR_TO_DATE(t.date_start, '%Y-%m-%d') END)
-                AND tr.id_bu = b.id_bu
-            )");
-
-        // 5. Score
-        $pdo->exec("INSERT INTO score (id_subject, id_karyawan, pre, post, statis_subject, instructor, statis_infras)
-            SELECT DISTINCT tr.id_subject, k.id_karyawan, 
-            NULLIF(REPLACE(TRIM(t.prescore), ',', '.'), ''), 
-            NULLIF(REPLACE(TRIM(t.postscore), ',', '.'), ''), 
-            NULLIF(REPLACE(TRIM(t.satis_subject), ',', '.'), ''), 
-            NULLIF(REPLACE(TRIM(t.satis_instructor), ',', '.'), ''), 
-            NULLIF(REPLACE(TRIM(t.satis_infras), ',', '.'), '')
-            FROM temp_import t
-            JOIN bu b ON TRIM(t.bu) = b.nama_bu COLLATE utf8mb4_general_ci
-            JOIN karyawan k ON k.index_karyawan = TRIM(t.indeks) COLLATE utf8mb4_general_ci
-            JOIN training tr ON 
-                tr.nama_subject = CONCAT(TRIM(t.subject), ' (', TRIM(t.class_code), ')') COLLATE utf8mb4_general_ci 
-                AND tr.date_start = (CASE WHEN t.date_start LIKE '%/%' THEN STR_TO_DATE(t.date_start, '%d/%m/%Y') ELSE STR_TO_DATE(t.date_start, '%Y-%m-%d') END)
-                AND tr.id_bu = b.id_bu
-            WHERE NOT EXISTS (SELECT 1 FROM score s WHERE s.id_subject = tr.id_subject AND s.id_karyawan = k.id_karyawan)");
-
-        $pdo->commit();
-        $pdo->exec("DROP TABLE temp_import"); 
-
-        $time = round(microtime(true) - $startTime, 2);
-        $report = "<div style='color:green; font-weight:bold; font-size:18px; padding:20px; border:2px solid green;'>✅ SUCCESS! Database updated in $time seconds.</div>";
-
     } catch (Exception $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        $report = "<div style='color:red; font-weight:bold; padding:20px; border:2px solid red;'>❌ Error: " . $e->getMessage() . "</div>";
+        $report = "<div class='alert alert-danger'>❌ Error: " . $e->getMessage() . "</div>";
     }
 }
 ?>
 
 <!DOCTYPE html>
 <html>
-<head><title>Clean Data Importer</title></head>
-<body style="font-family: sans-serif; padding: 50px;">
-    <h2>🚀 Clean Data Importer (Corrected)</h2>
-    <?= $report ?>
-    <div style="background: #f4f4f4; padding: 20px; border-radius: 8px; width: 400px;">
-        <form method="post" enctype="multipart/form-data">
-            <label><b>Step 1:</b> Save your Excel as <code>.CSV</code></label><br><br>
-            <label><b>Step 2:</b> Upload CSV File:</label><br>
-            <input type="file" name="csv_file" required accept=".csv"><br><br>
-            <button type="submit" style="padding: 10px 20px; cursor: pointer;">Upload Data</button>
-        </form>
+<head>
+    <title>Training Importer (Float Fixed)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light p-5">
+    <div class="card shadow" style="max-width: 600px; margin: auto;">
+        <div class="card-header bg-success text-white">
+            <h4 class="mb-0">🚀 Import CSV (Number Fix)</h4>
+        </div>
+        <div class="card-body">
+            <?= $report ?>
+            <form method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Select CSV File</label>
+                    <input type="file" name="csv_file" class="form-control" required accept=".csv">
+                </div>
+                <button type="submit" class="btn btn-dark w-100">Upload & Process</button>
+            </form>
+        </div>
     </div>
 </body>
 </html>
