@@ -348,7 +348,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             
             <div class="nav-links">
                 <a href="#" class="active">Dashboard</a>
-                <a href="reports.html">Reports</a>
+                <a href="reports.php">Reports</a>
                 <a href="upload.php">Upload Data</a>
             </div>
 

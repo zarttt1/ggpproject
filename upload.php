@@ -5,22 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GGF - Upload Data</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="/icons/icon.png">
+    <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Poppins", sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
         .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; }
         
-        /* NAVBAR */
-        .navbar { background-color: #197b40; height: 70px; border-radius: 50px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin-bottom: 30px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); }
+        /* --- UPDATED NAVBAR STYLES (From Dashboard) --- */
+        .navbar {
+            background-color: #197B40; 
+            height: 70px; 
+            border-radius: 0px 0px 50px 50px; 
+            display: flex; 
+            align-items: center;
+            padding: 0 30px; 
+            justify-content: space-between; 
+            margin: -20px 0 30px 0; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            flex-shrink: 0;
+            position: sticky;
+            top: -20px; 
+            z-index: 1000; 
+        }
+
         .logo-section img { height: 40px; }
+        
+        /* Links section (Middle) */
         .nav-links { display: flex; gap: 30px; align-items: center; }
         .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
         .nav-links a:hover { opacity: 1; }
-        .nav-links a.active { background: white; color: #197b40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
-        .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
-        .avatar-circle { width: 35px; height: 35px; background-color: #ff9a02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+        .nav-links a.active { background: white; color: #197B40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
         
+        /* Right Side Wrapper (User + Sign Out) */
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 20px; /* Space between user circle and sign out button */
+        }
+
+        .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
+        .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+
+        /* RED SIGN OUT BUTTON */
+        .btn-signout {
+            background-color: #d32f2f; /* Standard Red */
+            color: white !important; /* Force white text */
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 20px;
+            border-radius: 20px;
+            transition: background 0.3s;
+            opacity: 1 !important; /* Override default nav link opacity */
+        }
+        .btn-signout:hover {
+            background-color: #b71c1c; /* Darker red on hover */
+        }
+        
+        /* --- REST OF STYLES --- */
+
         /* ALERTS */
         .alert { padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease-out; }
         .alert-success { background-color: #d1fae5; color: #065f46; border-left: 4px solid #10b981; }
@@ -71,7 +114,7 @@
         .row-count { font-weight: bold; color: #197b40; }
         .empty-state { text-align: center; padding: 40px; color: #999; }
 
-        /* --- NEW LOADING OVERLAY STYLES --- */
+        /* LOADING OVERLAY STYLES */
         .loading-overlay {
             display: none; /* Hidden by default */
             position: fixed;
@@ -131,11 +174,15 @@
         <nav class="navbar">
             <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
             <div class="nav-links">
-                <a href="dashboard.html">Dashboard</a>
-                <a href="reports.html">Reports</a>
+                <a href="dashboard.php">Dashboard</a>
+                <a href="reports.php">Reports</a>
                 <a href="upload.php" class="active">Upload Data</a>
             </div>
-            <div class="user-profile"><div class="avatar-circle">AD</div></div>
+            
+            <div class="nav-right">
+                <div class="user-profile"><div class="avatar-circle">AD</div></div>
+                <a href="login.html" class="btn-signout">Sign Out</a>
+            </div>
         </nav>
 
         <div class="content-card">
@@ -162,7 +209,7 @@
             <form action="process_upload.php" method="POST" enctype="multipart/form-data" id="uploadForm">
                 <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileToUpload').click()">
                     <div class="upload-icon-circle">
-                        <img src="/icons/upload.ico" style="width: 32px; height: 32px; transform: scale(1.8); margin-right: 4px;">
+                        <img src="icons/upload.ico" style="width: 32px; height: 32px; transform: scale(1.8); margin-right: 4px;">
                     </div>
                     <div class="upload-title">Drag &amp; drop your file here or click to browse</div>
                     <div class="upload-subtitle" id="fileNameDisplay">Supported formats: .XLSX, .CSV (Max 10MB)</div>
