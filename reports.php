@@ -11,7 +11,7 @@ $end_date = $_GET['end'] ?? '';
 
 // Pagination Settings
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$limit = 10; // Records per page
+$limit = 10;
 $offset = ($page - 1) * $limit;
 
 // --- 2. BUILD SQL QUERY ---
@@ -32,7 +32,7 @@ if (!empty($start_date) && !empty($end_date)) {
 
 $where_sql = implode(' AND ', $where_clauses);
 
-// --- 3. COUNT TOTAL RECORDS (For Pagination) ---
+// --- 3. COUNT TOTAL RECORDS ---
 $count_sql = "
     SELECT COUNT(DISTINCT ts.id_session) as total 
     FROM training_session ts
@@ -44,7 +44,6 @@ $total_records = $total_result->fetch_assoc()['total'] ?? 0;
 $total_pages = ceil($total_records / $limit);
 
 // --- 4. FETCH DATA ---
-// FIX: Changed 's.pre_test' to 's.pre' and 's.post_test' to 's.post'
 $data_sql = "
     SELECT 
         ts.id_session,
@@ -68,7 +67,6 @@ $result = $conn->query($data_sql);
 // Fetch options for filters
 $types_opt = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis");
 $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method");
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -79,7 +77,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
-        /* Styles remain exactly as you designed */
+        /* --- GLOBAL & LAYOUT --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
         
@@ -93,6 +91,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
             box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
+        /* --- NAVBAR --- */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 50px 50px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
@@ -114,6 +113,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         }
         .btn-signout:hover { background-color: #b71c1c; }
 
+        /* --- REPORT CARD --- */
         .report-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 50px; }
         .report-header { background-color: #197B40; padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; color: white; }
         .header-actions { display: flex; align-items: center; gap: 12px; }
@@ -127,15 +127,15 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         }
         .btn-action:hover { background: #f0f0f0; }
 
+        /* --- TABLE --- */
         .table-container { padding: 20px 40px 0 40px; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; font-size: 13px; color: #888; padding: 15px 0; border-bottom: 1px solid #eee; }
-        td { padding: 20px 0; font-size: 14px; color: #333; border-bottom: 1px solid #f9f9f9; }
+        td { padding: 20px 0; font-size: 14px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         .training-cell { display: flex; align-items: center; gap: 12px; }
         .icon-box { background: #e8f5e9; color: #197B40; padding: 8px; border-radius: 8px; display: flex; align-items: center; }
         .training-name-text { font-weight: 700; }
         
-        /* Badges */
         .badge { padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; }
         .type-tech { background: #e3f2fd; color: #1e88e5; }
         .type-soft { background: #fff3e0; color: #f57c00; }
@@ -147,22 +147,81 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         
         .score { color: #197B40; font-weight: bold; }
 
-        /* Buttons */
+        /* --- VIEW BUTTON (Consistent Style) --- */
         .btn-view {
-            position: relative; background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%);
-            color: white; border: none; padding: 10px 18px; border-radius: 25px; font-size: 12px;
-            font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+            position: relative;
+            background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 25px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            overflow: visible;
+            transition: transform 0.2s;
         }
-        .btn-view svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; }
-        .btn-view rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #197B40; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
-        .btn-view:hover rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
+        .btn-view:active { transform: scale(0.98); }
+        .btn-view span { position: relative; z-index: 2; }
+        .btn-view svg {
+            position: absolute; top: -2px; left: -2px;
+            width: calc(100% + 4px); height: calc(100% + 4px);
+            fill: none; pointer-events: none; overflow: visible;
+        }
+        .btn-view rect {
+            width: 100%; height: 100%; rx: 25px; ry: 25px;
+            stroke: url(#multiColorGradient); /* Matches SVG in body */
+            stroke-width: 2; stroke-dasharray: 120, 380; stroke-dashoffset: 0;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .btn-view:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
 
+        /* --- APPLY FILTER BUTTON (MATCHING DASHBOARD) --- */
         .btn-apply {
-            position: relative; background: #197B40; color: white; border: none; padding: 12px 24px; border-radius: 25px;
-            flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+            position: relative; 
+            background: #197B40; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 25px;
+            flex: 1; 
+            font-weight: 600; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 8px; 
+            transition: background 0.2s; 
+            overflow: visible;
+        }
+        .btn-apply span { position: relative; z-index: 2; }
+        .btn-apply svg { 
+            position: absolute; top: -2px; left: -2px; 
+            width: calc(100% + 4px); height: calc(100% + 4px); 
+            fill: none; pointer-events: none; overflow: visible; 
+        }
+        .btn-apply rect { 
+            width: 100%; height: 100%; rx: 25px; ry: 25px; 
+            stroke: #FF9A02; /* Dashboard uses Orange stroke */
+            stroke-width: 3; 
+            stroke-dasharray: 120, 380; 
+            stroke-dashoffset: 0; 
+            opacity: 0; 
+            transition: opacity 0.3s; 
         }
         .btn-apply:hover { background: #145a32; }
+        .btn-apply:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
 
+        @keyframes snakeMove {
+            from { stroke-dashoffset: 500; }
+            to { stroke-dashoffset: 0; }
+        }
+
+        /* --- FOOTER & DRAWER --- */
         .table-footer { padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; color: #7a7a7a; font-size: 13px; }
         .pagination { display: flex; align-items: center; gap: 8px; }
         .page-num { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; text-decoration: none; color: #4a4a4a; font-weight: 500; }
@@ -189,6 +248,15 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
 </head>
 <body id="body">
 
+    <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" version="1.1" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="multiColorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#197B40" />
+                <stop offset="100%" stop-color="#14674b" />
+            </linearGradient>
+        </defs>
+    </svg>
+
     <div class="main-wrapper">
         <nav class="navbar">
             <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
@@ -210,17 +278,17 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
                 <h3>Training Sessions Report</h3>
                 <div class="header-actions">
                     <form id="searchForm" class="search-bar" onsubmit="event.preventDefault(); applyFilters();">
-                        <img src="icons/search.ico" style="width: 26px; height: 26px; margin-right: 4px;">
+                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                         <input type="text" id="searchInput" placeholder="Search training name..." value="<?php echo htmlspecialchars($search); ?>">
                     </form>
                     
                     <button class="btn-action" onclick="toggleDrawer()">
-                        <img src="icons/filter.ico" style="width: 24px; height: 24px; margin-right: 4px;">
+                        <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                         Filters
                     </button>
 
                     <button class="btn-action" onclick="window.location.href='export_report.php?<?php echo $_SERVER['QUERY_STRING']; ?>'">
-                        <img src="icons/excel.ico" style="width: 24px; height: 24px; margin-right: 4px;">
+                        <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                         Export Report
                     </button>
                 </div>
@@ -242,7 +310,6 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
                     <tbody>
                         <?php if ($result->num_rows > 0): ?>
                             <?php while($row = $result->fetch_assoc()): 
-                                // Determine Badge Classes
                                 $typeClass = 'type-default';
                                 if (stripos($row['type'], 'Technical') !== false) $typeClass = 'type-tech';
                                 elseif (stripos($row['type'], 'Soft') !== false) $typeClass = 'type-soft';
@@ -251,7 +318,6 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
                                 if (stripos($row['method'], 'Inclass') !== false) $methodClass = 'method-inclass';
                                 elseif (stripos($row['method'], 'Online') !== false || stripos($row['method'], 'Webinar') !== false) $methodClass = 'method-online';
                                 
-                                // Format Score (Use Post-Test if avail, else Pre-Test)
                                 $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
                             ?>
                             <tr>
@@ -348,6 +414,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
                 </div>
             </div>
         </div>
+        
         <div class="drawer-footer">
             <button class="btn-reset" onclick="window.location.href='reports.php'">Reset</button>
             <button class="btn-apply" onclick="applyFilters()">

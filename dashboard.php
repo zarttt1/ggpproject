@@ -3,7 +3,6 @@ session_start();
 require 'db_connect.php';
 
 // --- 1. GET FILTER VALUES FROM URL ---
-// We check if values exist in the URL, otherwise set defaults
 $f_bu = $_GET['bu'] ?? 'All';
 $f_func1 = $_GET['func_n1'] ?? 'All';
 $f_func2 = $_GET['func_n2'] ?? 'All';
@@ -11,6 +10,7 @@ $f_type = $_GET['type'] ?? 'All';
 $f_search = $_GET['search'] ?? '';
 $f_start = $_GET['start'] ?? '';
 $f_end = $_GET['end'] ?? '';
+$f_training_name = $_GET['training_name'] ?? 'All';
 
 // --- 2. BUILD SQL QUERY ---
 $where_clauses = ["1=1"];
@@ -20,11 +20,16 @@ if ($f_func1 !== 'All') $where_clauses[] = "f.func_n1 = '$f_func1'";
 if ($f_func2 !== 'All') $where_clauses[] = "f.func_n2 = '$f_func2'";
 if ($f_type !== 'All') $where_clauses[] = "t.jenis = '$f_type'";
 if (!empty($f_search)) $where_clauses[] = "t.nama_training LIKE '%$f_search%'";
-if (!empty($f_start) && !empty($f_end)) $where_clauses[] = "ts.tanggal BETWEEN '$f_start' AND '$f_end'";
+
+// [FIXED] Changed 'ts.tanggal' to 'ts.date_start' to match your DB structure
+if (!empty($f_start) && !empty($f_end)) $where_clauses[] = "ts.date_start BETWEEN '$f_start' AND '$f_end'";
+
+// Apply specific training filter for the TOP STATS only
+if ($f_training_name !== 'All') $where_clauses[] = "t.nama_training = '$f_training_name'";
 
 $where_sql = implode(' AND ', $where_clauses);
 
-// Base Join Query
+// Base Join String
 $join_sql = "
     FROM score s
     JOIN training_session ts ON s.id_session = ts.id_session
@@ -37,20 +42,32 @@ $join_sql = "
 // --- 3. CALCULATE STATS ---
 // Total Hours
 $res_hours = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql);
-$total_hours = number_format($res_hours->fetch_assoc()['total'] ?? 0);
+$row_hours = $res_hours->fetch_assoc();
+$total_hours_raw = $row_hours['total'] ?? 0;
 
-// Breakdown: In-Class vs Self-Paced (Adjust logic based on your specific 'method' values in DB)
+// Breakdown: In-Class
 $res_inclass = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND ts.method LIKE '%Class%'");
-$hours_inclass = number_format($res_inclass->fetch_assoc()['total'] ?? 0);
+$row_inclass = $res_inclass->fetch_assoc();
+$hours_inclass_raw = $row_inclass['total'] ?? 0;
 
+// Breakdown: Online
 $res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Online%' OR ts.method LIKE '%Self%')");
-$hours_online = number_format($res_online->fetch_assoc()['total'] ?? 0);
+$row_online = $res_online->fetch_assoc();
+$hours_online_raw = $row_online['total'] ?? 0;
 
 // --- 4. FETCH TRAINING LIST ---
-// We limit to 50 to prevent overcrowding the list
+// Exclude specific training filter for the list so user sees all options
+$where_clauses_list = array_diff($where_clauses, ["t.nama_training = '$f_training_name'"]);
+$where_sql_list = implode(' AND ', $where_clauses_list);
+
 $sql_list = "
     SELECT t.nama_training
-    $join_sql
+    FROM score s
+    JOIN training_session ts ON s.id_session = ts.id_session
+    JOIN training t ON ts.id_training = t.id_training
+    LEFT JOIN bu b ON s.id_bu = b.id_bu
+    LEFT JOIN func f ON s.id_func = f.id_func
+    WHERE $where_sql_list
     GROUP BY t.nama_training
     LIMIT 50
 ";
@@ -61,8 +78,8 @@ $opt_bu = $conn->query("SELECT DISTINCT nama_bu FROM bu WHERE nama_bu IS NOT NUL
 $opt_func1 = $conn->query("SELECT DISTINCT func_n1 FROM func WHERE func_n1 IS NOT NULL ORDER BY func_n1");
 $opt_func2 = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT NULL ORDER BY func_n2");
 $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL ORDER BY jenis");
-
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -72,7 +89,6 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
-        /* [User's CSS Original] */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
 
@@ -86,198 +102,96 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
-        /* --- NAVBAR STYLES --- */
+        /* NAVBAR */
         .navbar {
-            background-color: #197B40; 
-            height: 70px; 
-            border-radius: 0px 0px 50px 50px; 
-            display: flex; 
-            align-items: center;
-            padding: 0 30px; 
-            justify-content: space-between; 
-            margin: -20px 0 30px 0; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
-            flex-shrink: 0;
-            position: sticky;
-            top: -20px; 
-            z-index: 1000; 
+            background-color: #197B40; height: 70px; border-radius: 0px 0px 50px 50px; 
+            display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
+            margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
+            position: sticky; top: -20px; z-index: 1000; 
         }
-
         .logo-section img { height: 40px; }
-        
-        /* Links section (Middle) */
         .nav-links { display: flex; gap: 30px; align-items: center; }
         .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
         .nav-links a:hover { opacity: 1; }
         .nav-links a.active { background: white; color: #197B40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
-        
-        /* Right Side Wrapper (User + Sign Out) */
-        .nav-right {
-            display: flex;
-            align-items: center;
-            gap: 20px; /* Space between user circle and sign out button */
-        }
-
+        .nav-right { display: flex; align-items: center; gap: 20px; }
         .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
         .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
-
-        /* RED SIGN OUT BUTTON */
         .btn-signout {
-            background-color: #d32f2f; /* Standard Red */
-            color: white !important; /* Force white text */
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 600;
-            padding: 8px 20px;
-            border-radius: 20px;
-            transition: background 0.3s;
-            opacity: 1 !important; /* Override default nav link opacity */
+            background-color: #d32f2f; color: white !important; text-decoration: none;
+            font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px;
+            transition: background 0.3s; opacity: 1 !important;
         }
-        .btn-signout:hover {
-            background-color: #b71c1c; /* Darker red on hover */
-        }
+        .btn-signout:hover { background-color: #b71c1c; }
 
-        /* --- REST OF CSS --- */
-        .summary-grid { 
-            display: grid; 
-            grid-template-columns: repeat(3, 1fr); 
-            gap: 20px; 
-            margin-bottom: 25px; 
-            width: 100%; 
-            flex-shrink: 0; 
-        }
-        
+        /* SUMMARY CARDS */
+        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 25px; width: 100%; flex-shrink: 0; }
         .summary-card {
             background: white; border-radius: 15px; padding: 20px 25px; display: flex; align-items: center; gap: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-left: 5px solid #197B40; cursor: pointer; 
             transition: transform 0.2s; min-width: 0; position: relative;
         }
         .summary-card:hover { transform: translateY(-3px); }
-        
-        .summary-card.has-filter {
-            border-left: 5px solid #FF9A02;
-            background-color: #fffcf5;
-        }
-
+        .summary-card.has-filter { border-left: 5px solid #FF9A02; background-color: #fffcf5; }
         .s-close {
-            position: absolute; top: 5px; right: 5px;
-            width: 20px; height: 20px; border-radius: 50%;
-            background: #ffe0b2; color: #e65100;
-            display: none; align-items: center; justify-content: center;
+            position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; border-radius: 50%;
+            background: #ffe0b2; color: #e65100; display: none; align-items: center; justify-content: center;
             font-size: 12px; transition: 0.2s; z-index: 5;
         }
         .s-close:hover { background: #ffcc80; transform: scale(1.1); }
         .summary-card.has-filter .s-close { display: flex; }
-
         .s-icon { color: #888; display: flex; align-items: center; transition: color 0.3s; }
         .summary-card.has-filter .s-icon { color: #FF9A02; }
-
         .s-content { display: flex; flex-direction: column; white-space: nowrap; overflow: hidden; width: 100%; }
         .s-label { font-size: 11px; color: #999; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px; }
         .s-value { font-size: 15px; font-weight: 700; color: #333; overflow: hidden; text-overflow: ellipsis; }
 
-        /* HERO CARD STYLES */
+        /* HERO CARD */
         .hero-card {
-            background-color: #0e5e45; 
-            background-image: linear-gradient(135deg, #117054 0%, #0a4d38 100%);
-            border-radius: 20px; 
-            padding: 30px 50px; 
-            color: white; 
-            
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between;
-            
-            box-shadow: 0 10px 30px rgba(17, 112, 84, 0.2); 
-            margin-bottom: 25px;
-            width: 100%; 
-            position: relative; 
-            overflow: hidden; 
-            min-height: 180px; 
-            flex-shrink: 0;
+            background-color: #0e5e45; background-image: linear-gradient(135deg, #117054 0%, #0a4d38 100%);
+            border-radius: 20px; padding: 30px 50px; color: white; display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 10px 30px rgba(17, 112, 84, 0.2); margin-bottom: 25px; width: 100%; 
+            position: relative; overflow: hidden; min-height: 180px; flex-shrink: 0;
         }
-
         .hero-card::after { 
-            content: ''; position: absolute; right: -50px; top: -50px; 
-            width: 350px; height: 350px; background: rgba(255,255,255,0.05); 
-            border-radius: 50%; pointer-events: none; 
+            content: ''; position: absolute; right: -50px; top: -50px; width: 350px; height: 350px; 
+            background: rgba(255,255,255,0.05); border-radius: 50%; pointer-events: none; 
         }
-
-        .hero-left-wrapper {
-            display: flex;
-            align-items: center;
-            margin-right: auto;
-            position: static; 
-        }
-
-        .hero-illustration-img {
-            position: absolute; 
-            height: 150px; 
-            width: auto;
-            left: 0px; 
-            z-index: 1; 
-            opacity: 1;
-        }
-
-        .hero-main { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 5px; 
-            white-space: nowrap; 
-            position: relative;
-            z-index: 2;
-            margin-left: 120px; 
-        }
-
+        .hero-left-wrapper { display: flex; align-items: center; margin-right: auto; position: static; }
+        .hero-illustration-img { position: absolute; height: 150px; width: auto; left: 0px; z-index: 1; }
+        .hero-main { display: flex; flex-direction: column; gap: 5px; white-space: nowrap; position: relative; z-index: 2; margin-left: 120px; }
         .hero-number { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
         .hero-label { font-size: 13px; opacity: 0.85; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; }
-
         .hero-breakdown { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 15px; 
-            border-left: 1px solid rgba(255,255,255,0.15);
-            padding-left: 30px;
-            position: relative;
-            z-index: 2;
+            display: flex; flex-direction: column; gap: 15px; border-left: 1px solid rgba(255,255,255,0.15);
+            padding-left: 30px; position: relative; z-index: 2;
         }
-
         .breakdown-item { display: flex; align-items: center; gap: 15px; }
         .icon-box { width: 40px; height: 40px; background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .b-text h4 { font-size: 12px; font-weight: 400; opacity: 0.85; margin-bottom: 2px; white-space: nowrap; }
         .b-text p { font-size: 18px; font-weight: 700; white-space: nowrap; }
 
+        /* TRAINING SECTION */
         .training-section {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            min-height: 500px;
-            overflow: hidden;
+            background: white; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; flex-grow: 1; min-height: 500px; overflow: hidden;
         }
         .section-header {
-            background-color: #197B40; padding: 25px 30px;
-            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+            background-color: #197B40; padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
         }
         .section-title { font-size: 20px; font-weight: 700; color: white; }
         .header-actions { display: flex; gap: 15px; align-items: center; }
         .search-box {
-            background: white; border-radius: 50px; padding: 12px 20px;
-            display: flex; align-items: center; gap: 10px; width: 350px;
+            background: white; border-radius: 50px; padding: 12px 20px; display: flex; align-items: center; gap: 10px; width: 350px;
         }
         .search-box input { border: none; outline: none; background: transparent; width: 100%; font-size: 14px; color: #333; }
         .btn-filter {
-            background: white; border: none; color: #197B40;
-            padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 600; cursor: pointer;
-            display: flex; align-items: center; gap: 8px; transition: all 0.3s;
+            background: white; border: none; color: #197B40; padding: 12px 24px; border-radius: 50px; 
+            font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.3s;
         }
         .btn-filter:hover { background: #f0f0f0; }
-
         .training-list {
-            display: flex; flex-direction: column; gap: 0;
-            overflow-y: auto; padding: 20px 30px 30px 30px; flex-grow: 1;
+            display: flex; flex-direction: column; gap: 0; overflow-y: auto; padding: 20px 30px 30px 30px; flex-grow: 1;
         }
         .training-list::-webkit-scrollbar { width: 6px; }
         .training-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
@@ -299,6 +213,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         }
         .training-info h4 { font-size: 14px; font-weight: 700; color: #333; }
 
+        /* DRAWER */
         .filter-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none;
@@ -326,7 +241,6 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; }
         .btn-reset { background: #fff; border: 1px solid #ddd; color: #666; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; transition: 0.2s; }
         .btn-reset:hover { background: #f9f9f9; }
-
         .btn-apply {
             position: relative; background: #197B40; color: white; border: none; padding: 12px 24px; border-radius: 25px;
             flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; 
@@ -345,13 +259,11 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     <div class="main-wrapper">
         <nav class="navbar">
             <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
-            
             <div class="nav-links">
                 <a href="#" class="active">Dashboard</a>
                 <a href="reports.php">Reports</a>
                 <a href="upload.php">Upload Data</a>
             </div>
-
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle">AD</div></div>
                 <a href="login.html" class="btn-signout">Sign Out</a>
@@ -418,29 +330,28 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             <div class="hero-left-wrapper">
                 <img src="icons/Pina - Study.png" alt="Illustration" class="hero-illustration-img">
                 <div class="hero-main">
-                    <div class="hero-number"><?php echo $total_hours; ?></div>
+                    <div class="hero-number" id="counter-total" data-target="<?php echo $total_hours_raw; ?>">0</div>
                     <div class="hero-label">TOTAL LEARNING HOURS</div>
                 </div>
             </div>
-
             <div class="hero-breakdown">
                 <div class="breakdown-item">
                     <div class="icon-box"><img src="icons/inclass.ico" style="width: 35px; height: 35px;"></div>
                     <div class="b-text">
                         <h4>In-Class Training</h4>
-                        <p><?php echo $hours_inclass; ?>h</p>
+                        <p><span id="counter-inclass" data-target="<?php echo $hours_inclass_raw; ?>">0</span>h</p>
                     </div>
                 </div>
                 <div class="breakdown-item">
                     <div class="icon-box"><img src="icons/selfpaced.ico" style="width: 35px; height: 35 px;"></div>
                     <div class="b-text">
                         <h4>Self-Paced Online</h4>
-                        <p><?php echo $hours_online; ?>h</p>
+                        <p><span id="counter-online" data-target="<?php echo $hours_online_raw; ?>">0</span>h</p>
                     </div>
                 </div>
             </div>
-
         </div>
+
         <div class="training-section">
             <div class="section-header">
                 <div class="section-title">Training Programs</div>
@@ -476,7 +387,6 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     </div>
 
     <div class="filter-overlay" onclick="toggleDrawer()"></div>
-    
     <div class="filter-drawer">
         <div class="drawer-header">
             <h4>Filter Options</h4>
@@ -501,9 +411,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <select id="select-bu">
                     <option value="All">All Units</option>
                     <?php while($r = $opt_bu->fetch_assoc()): ?>
-                        <option value="<?php echo $r['nama_bu']; ?>" <?php echo ($f_bu == $r['nama_bu'])?'selected':''; ?>>
-                            <?php echo $r['nama_bu']; ?>
-                        </option>
+                        <option value="<?php echo $r['nama_bu']; ?>" <?php echo ($f_bu == $r['nama_bu'])?'selected':''; ?>><?php echo $r['nama_bu']; ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
@@ -512,9 +420,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <select id="select-func-n1">
                     <option value="All">All Functions</option>
                     <?php while($r = $opt_func1->fetch_assoc()): ?>
-                        <option value="<?php echo $r['func_n1']; ?>" <?php echo ($f_func1 == $r['func_n1'])?'selected':''; ?>>
-                            <?php echo $r['func_n1']; ?>
-                        </option>
+                        <option value="<?php echo $r['func_n1']; ?>" <?php echo ($f_func1 == $r['func_n1'])?'selected':''; ?>><?php echo $r['func_n1']; ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
@@ -523,26 +429,20 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <select id="select-func-n2">
                     <option value="All">All Functions</option>
                     <?php while($r = $opt_func2->fetch_assoc()): ?>
-                        <option value="<?php echo $r['func_n2']; ?>" <?php echo ($f_func2 == $r['func_n2'])?'selected':''; ?>>
-                            <?php echo $r['func_n2']; ?>
-                        </option>
+                        <option value="<?php echo $r['func_n2']; ?>" <?php echo ($f_func2 == $r['func_n2'])?'selected':''; ?>><?php echo $r['func_n2']; ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
-
             <div class="filter-group">
                 <label>Training Type</label>
                 <select id="select-type">
                     <option value="All">All Types</option>
                     <?php while($r = $opt_type->fetch_assoc()): ?>
-                        <option value="<?php echo $r['jenis']; ?>" <?php echo ($f_type == $r['jenis'])?'selected':''; ?>>
-                            <?php echo $r['jenis']; ?>
-                        </option>
+                        <option value="<?php echo $r['jenis']; ?>" <?php echo ($f_type == $r['jenis'])?'selected':''; ?>><?php echo $r['jenis']; ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
         </div>
-
         <div class="drawer-footer">
             <button class="btn-reset" onclick="resetDrawer()">Reset</button>
             <button class="btn-apply" onclick="applyFilters()">
@@ -555,24 +455,86 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
     lucide.createIcons();
-    
-    function toggleDrawer() { 
-        document.getElementById('body').classList.toggle('drawer-open'); 
+
+    // --- 1. INTELLIGENT ROLLING NUMBERS ANIMATION ---
+    function animateValue(obj, start, end, duration) {
+        if (start === end) {
+            obj.innerHTML = end.toLocaleString();
+            return;
+        }
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            
+            // Math.floor works for both positive (counting up) and negative (counting down) differences
+            const currentVal = Math.floor(progress * (end - start) + start);
+            
+            obj.innerHTML = currentVal.toLocaleString();
+            
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            } else {
+                obj.innerHTML = end.toLocaleString();
+            }
+        };
+        window.requestAnimationFrame(step);
     }
 
+    document.addEventListener("DOMContentLoaded", () => {
+        // Define our counters and their storage keys
+        const counters = [
+            { id: "counter-total", key: "prev_total" },
+            { id: "counter-inclass", key: "prev_inclass" },
+            { id: "counter-online", key: "prev_online" }
+        ];
+
+        counters.forEach(item => {
+            const el = document.getElementById(item.id);
+            if(el) {
+                const target = parseInt(el.getAttribute("data-target"));
+                
+                // Get the PREVIOUS value from sessionStorage. If none, start at 0.
+                let startVal = parseInt(sessionStorage.getItem(item.key));
+                if (isNaN(startVal)) startVal = 0;
+
+                // Run animation from START -> TARGET
+                animateValue(el, startVal, target, 1000); // 1.0s duration
+
+                // Update sessionStorage with the NEW target so next reload starts from here
+                sessionStorage.setItem(item.key, target);
+            }
+        });
+
+        // --- 2. RESTORE UI STATE ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTraining = urlParams.get('training_name');
+        
+        if (activeTraining) {
+            const card = document.getElementById('card-training');
+            const valSpan = document.getElementById('val-training');
+            valSpan.textContent = activeTraining;
+            card.classList.add('has-filter');
+
+            const items = document.querySelectorAll('.training-info h4');
+            items.forEach(h4 => {
+                if(h4.textContent === activeTraining) {
+                    h4.closest('.training-item').classList.add('selected');
+                }
+            });
+        }
+    });
+
+    // --- 3. FILTER LOGIC ---
+    function toggleDrawer() { document.getElementById('body').classList.toggle('drawer-open'); }
+
     function selectTraining(element, trainingName) {
-        document.querySelectorAll('.training-item').forEach(item => { item.classList.remove('selected'); });
-        element.classList.add('selected');
-        
-        const card = document.getElementById('card-training');
-        const valSpan = document.getElementById('val-training');
-        
-        valSpan.textContent = trainingName;
-        card.classList.add('has-filter');
+        const url = new URL(window.location.href);
+        url.searchParams.set('training_name', trainingName);
+        window.location.href = url.toString();
     }
 
     function applyFilters() {
-        // Gather values
         const dStart = document.getElementById('input-date-start').value;
         const dEnd = document.getElementById('input-date-end').value;
         const selBu = document.getElementById('select-bu').value;
@@ -581,68 +543,32 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         const selType = document.getElementById('select-type').value;
         const searchVal = document.getElementById('search-input').value;
 
-        // Construct URL parameters
-        const params = new URLSearchParams();
-        if(selBu !== 'All') params.set('bu', selBu);
-        if(selFuncN1 !== 'All') params.set('func_n1', selFuncN1);
-        if(selFuncN2 !== 'All') params.set('func_n2', selFuncN2);
-        if(selType !== 'All') params.set('type', selType);
+        const params = new URLSearchParams(window.location.search);
+        
+        if(selBu !== 'All') params.set('bu', selBu); else params.delete('bu');
+        if(selFuncN1 !== 'All') params.set('func_n1', selFuncN1); else params.delete('func_n1');
+        if(selFuncN2 !== 'All') params.set('func_n2', selFuncN2); else params.delete('func_n2');
+        if(selType !== 'All') params.set('type', selType); else params.delete('type');
         if(dStart) params.set('start', dStart);
         if(dEnd) params.set('end', dEnd);
         if(searchVal) params.set('search', searchVal);
 
-        // Reload page with new params
         window.location.search = params.toString();
     }
 
     function clearFilter(event, type) {
         event.stopPropagation();
-        
         const url = new URL(window.location.href);
-        const defaults = {
-            'training': 'All Trainings',
-            'date': 'All Time',
-            'bu': 'All Units',
-            'func-n1': 'All Functions',
-            'func-n2': 'All Functions',
-            'type': 'All Types'
-        };
-
-        // Reset visual state (optimistic) and URL param
-        if(document.getElementById('val-' + type)) {
-            document.getElementById('val-' + type).textContent = defaults[type];
-            document.getElementById('card-' + type).classList.remove('has-filter');
-        }
-
-        if(type === 'date') {
-            url.searchParams.delete('start');
-            url.searchParams.delete('end');
-        } else if (type === 'bu') {
-            url.searchParams.delete('bu');
-        } else if (type === 'func-n1') {
-            url.searchParams.delete('func_n1');
-        } else if (type === 'func-n2') {
-            url.searchParams.delete('func_n2');
-        } else if (type === 'type') {
-            url.searchParams.delete('type');
-        }
-        
-        // Reload
+        if(type === 'training') url.searchParams.delete('training_name');
+        else if(type === 'date') { url.searchParams.delete('start'); url.searchParams.delete('end'); }
+        else if(type === 'bu') url.searchParams.delete('bu');
+        else if(type === 'func-n1') url.searchParams.delete('func_n1');
+        else if(type === 'func-n2') url.searchParams.delete('func_n2');
+        else if(type === 'type') url.searchParams.delete('type');
         window.location.href = url.toString();
     }
 
-    function resetDrawer() {
-        // Reset inputs
-        document.getElementById('input-date-start').value = '';
-        document.getElementById('input-date-end').value = '';
-        document.getElementById('select-bu').value = 'All';
-        document.getElementById('select-func-n1').value = 'All';
-        document.getElementById('select-func-n2').value = 'All';
-        document.getElementById('select-type').value = 'All';
-        
-        // Clear all filters via reload
-        window.location.href = 'dashboard.php';
-    }
+    function resetDrawer() { window.location.href = 'dashboard.php'; }
 </script>
 </body>
 </html>
