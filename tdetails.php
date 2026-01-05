@@ -14,6 +14,90 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10;
 $offset = ($page - 1) * $limit;
 
+// ==========================================
+//  AJAX HANDLER (For Live Search)
+// ==========================================
+if (isset($_GET['ajax_search'])) {
+    $search_term = $_GET['ajax_search'];
+    $where_search = "";
+    
+    if (!empty($search_term)) {
+        $safe_search = $conn->real_escape_string($search_term);
+        $where_search = " AND (k.nama_karyawan LIKE '%$safe_search%' OR k.index_karyawan LIKE '%$safe_search%')";
+    }
+
+    // 1. Count Total
+    $count_sql = "SELECT COUNT(*) as total FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan WHERE s.id_session = $id_session $where_search";
+    $total_rows = $conn->query($count_sql)->fetch_assoc()['total'];
+    $total_pages = ceil($total_rows / $limit);
+
+    // 2. Fetch Data
+    $list_sql = "
+        SELECT 
+            k.index_karyawan, k.nama_karyawan,
+            b.nama_bu, f.func_n1,
+            s.pre, s.post
+        FROM score s
+        JOIN karyawan k ON s.id_karyawan = k.id_karyawan
+        LEFT JOIN bu b ON s.id_bu = b.id_bu
+        LEFT JOIN func f ON s.id_func = f.id_func
+        WHERE s.id_session = $id_session $where_search
+        ORDER BY k.nama_karyawan ASC
+        LIMIT $limit OFFSET $offset
+    ";
+    $participants = $conn->query($list_sql);
+
+    // 3. Build Table Rows HTML
+    ob_start();
+    if ($participants->num_rows > 0) {
+        while ($p = $participants->fetch_assoc()) {
+            $improvement = $p['post'] - $p['pre'];
+            $impSign = ($improvement > 0) ? '+' : '';
+            $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
+            $initials = strtoupper(substr($p['nama_karyawan'], 0, 1) . substr(explode(' ', $p['nama_karyawan'])[1] ?? '', 0, 1));
+            ?>
+            <tr>
+                <td><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
+                <td>
+                    <div class="user-cell">
+                        <div class="user-avatar"><?php echo $initials; ?></div> 
+                        <?php echo htmlspecialchars($p['nama_karyawan']); ?>
+                    </div>
+                </td>
+                <td><?php echo htmlspecialchars($p['nama_bu']); ?></td>
+                <td><?php echo htmlspecialchars($p['func_n1']); ?></td>
+                <td><?php echo $p['pre']; ?></td>
+                <td><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
+                <td><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
+            </tr>
+            <?php
+        }
+    } else {
+        echo '<tr><td colspan="7" style="text-align:center; padding: 20px; color:#888;">No participants found.</td></tr>';
+    }
+    $table_html = ob_get_clean();
+
+    // 4. Build Pagination HTML
+    ob_start();
+    ?>
+    <div>Showing <?php echo ($total_rows > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
+    <div class="pagination-controls">
+        <?php if($page > 1): $prev = $page - 1; echo "<a href='?id=$id_session&page=$prev&search=$search_term' class='page-btn'>&lt;</a>"; endif; ?>
+        <a href="#" class="page-btn active"><?php echo $page; ?></a>
+        <?php if($page < $total_pages): $next = $page + 1; echo "<a href='?id=$id_session&page=$next&search=$search_term' class='page-btn'>&gt;</a>"; endif; ?>
+    </div>
+    <?php
+    $pagination_html = ob_get_clean();
+
+    // Return JSON
+    echo json_encode(['table' => $table_html, 'pagination' => $pagination_html]);
+    exit();
+}
+// ==========================================
+//  END AJAX HANDLER
+// ==========================================
+
+
 // --- 1. GET SESSION METADATA ---
 $meta_sql = "
     SELECT t.nama_training, ts.date_start 
@@ -73,7 +157,7 @@ $top_sql = "
 ";
 $top_improvers = $conn->query($top_sql);
 
-// --- 4. FETCH TABLE DATA ---
+// --- 4. FETCH TABLE DATA (INITIAL LOAD) ---
 $where_search = "";
 if (!empty($search)) {
     $safe_search = $conn->real_escape_string($search);
@@ -132,92 +216,34 @@ $participants = $conn->query($list_sql);
         /* --- HERO BANNER --- */
         .hero-banner {
             background: linear-gradient(135deg, #197B40 0%, #115c32 100%);
-            border-radius: 25px;
-            padding: 30px 50px;
-            margin-bottom: 30px;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            color: white;
-            box-shadow: 0 10px 25px rgba(25, 123, 64, 0.2);
+            border-radius: 25px; padding: 30px 50px; margin-bottom: 30px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; color: white; box-shadow: 0 10px 25px rgba(25, 123, 64, 0.2);
         }
-        .hero-banner::before {
-            content: ''; position: absolute; left: -50px; bottom: -50px;
-            width: 300px; height: 300px; border-radius: 50%;
-            background: rgba(255,255,255,0.05); pointer-events: none;
-        }
-
+        .hero-banner::before { content: ''; position: absolute; left: -50px; bottom: -50px; width: 300px; height: 300px; border-radius: 50%; background: rgba(255,255,255,0.05); pointer-events: none; }
         .hero-left { display: flex; align-items: center; gap: 30px; position: relative; z-index: 2; }
-        .mascot-img { 
-            height: 150px; 
-            width: auto; 
-            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.2)); 
-            transform: scaleX(-1); 
-        }
-        
+        .mascot-img { height: 150px; width: auto; filter: drop-shadow(0 10px 10px rgba(0,0,0,0.2)); transform: scaleX(-1); }
         .hero-text h4 { font-size: 14px; opacity: 0.8; font-weight: 500; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
         .hero-text h1 { font-size: 32px; font-weight: 700; margin-bottom: 10px; line-height: 1.2; }
         .hero-meta { display: flex; align-items: center; gap: 10px; font-size: 14px; opacity: 0.9; }
-        
         .hero-stats { display: flex; gap: 30px; position: relative; z-index: 2; }
         .h-stat-box { text-align: right; }
         .h-stat-val { font-size: 42px; font-weight: 700; color: #fff; line-height: 1; }
         .h-stat-lbl { font-size: 12px; opacity: 0.8; margin-top: 5px; text-transform: uppercase; font-weight: 600; }
         .h-stat-box.highlight .h-stat-val { color: #FED404; }
-
-        .back-btn {
-            position: absolute; top: 20px; right: 20px;
-            background: rgba(255,255,255,0.15); color: white;
-            padding: 8px 16px; border-radius: 20px;
-            font-size: 12px; font-weight: 600; text-decoration: none;
-            display: flex; align-items: center; gap: 6px;
-            transition: background 0.2s; z-index: 10;
-        }
+        .back-btn { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.15); color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: background 0.2s; z-index: 10; }
         .back-btn:hover { background: rgba(255,255,255,0.25); }
 
-        /* --- LEADERBOARD (The "Gamification") --- */
+        /* --- LEADERBOARD --- */
         .section-header { margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #333; display: flex; align-items: center; gap: 10px; }
         .improver-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
-        
-        .improver-card {
-            background: white; border-radius: 15px; padding: 20px;
-            display: flex; align-items: center; gap: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-            border-bottom: 4px solid #eee;
-        }
-        
-        /* UPDATED: Removed backgrounds behind medals */
-        /* Gold */
+        .improver-card { background: white; border-radius: 15px; padding: 20px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-bottom: 4px solid #eee; }
         .improver-card.gold { border-bottom-color: #FFD700; }
         .improver-card.gold .medal-icon { background: transparent; }
-        
-        /* Silver */
         .improver-card.silver { border-bottom-color: #C0C0C0; }
         .improver-card.silver .medal-icon { background: transparent; }
-        
-        /* Bronze */
         .improver-card.bronze { border-bottom-color: #CD7F32; }
         .improver-card.bronze .medal-icon { background: transparent; }
-
-        /* UPDATED: Fixed size and image fit */
-        .medal-icon { 
-            width: 75px; 
-            height: 75px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            flex-shrink: 0; 
-        }
-        
-        .medal-icon img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1)); 
-        }
-
+        .medal-icon { width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .medal-icon img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1)); }
         .imp-info h4 { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 2px; }
         .imp-info p { font-size: 12px; color: #777; }
         .imp-score { margin-left: auto; font-size: 18px; font-weight: 800; color: #197B40; }
@@ -227,7 +253,6 @@ $participants = $conn->query($list_sql);
         .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
         .chart-card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
         .chart-title { font-size: 15px; font-weight: 700; color: #197B40; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-        
         .bar-row { display: flex; align-items: center; margin-bottom: 15px; font-size: 12px; }
         .bar-row:last-child { margin-bottom: 0; }
         .bar-label { width: 45px; color: #555; font-weight: 600; }
@@ -244,9 +269,9 @@ $participants = $conn->query($list_sql);
         .table-actions { display: flex; gap: 12px; align-items: center; }
         .search-box { background-color: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; }
         .search-box i { color: #197B40; width: 16px; height: 16px; }
+        /* Removed "form" behavior from search input via JS prevention */
         .search-box input { border: none; background: transparent; outline: none; height: 100%; flex: 1; padding-left: 10px; font-size: 13px; color: #333; }
-        
-        .btn-export { height: 35px; padding: 0 20px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .btn-export { height: 35px; padding: 0 20px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; text-decoration: none; }
         .btn-export:hover { background-color: #f0fdf4; }
 
         table { width: 100%; border-collapse: collapse; }
@@ -254,10 +279,8 @@ $participants = $conn->query($list_sql);
         td { padding: 15px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         .user-cell { display: flex; align-items: center; gap: 10px; font-weight: 600; }
         .user-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: #197B40; color: white; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-        
         .badge-improvement { background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         .badge-decline { background-color: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
-
         .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; }
         .page-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
         .page-btn.active { background-color: #197B40; color: white; font-weight: 600; }
@@ -283,7 +306,7 @@ $participants = $conn->query($list_sql);
             <a href="reports.php" class="back-btn"><i data-lucide="arrow-left" style="width:14px;"></i> Back</a>
             
             <div class="hero-left">
-                <img src="icons/Pina - Info.png" alt="Mascot" class="mascot-img">
+                <img src="mascot_pineapple.png" alt="Mascot" class="mascot-img">
                 <div class="hero-text">
                     <h4>Training Session Report</h4>
                     <h1><?php echo $training_name; ?></h1>
@@ -372,14 +395,13 @@ $participants = $conn->query($list_sql);
             <div class="table-header-strip">
                 <div class="table-title">Full Participant List</div>
                 <div class="table-actions">
-                    <form action="" method="GET" class="search-box">
-                        <input type="hidden" name="id" value="<?php echo $id_session; ?>">
-                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
-                        <input type="text" name="search" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>">
-                    </form>
-                    <button class="btn-export" onclick="window.location.href='export_session.php?id=<?php echo $id_session; ?>'">
-                        <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;"> Export
-                    </button>
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="searchInput" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>">
+                    </div>
+                    <a href="export_session.php?id=<?php echo $id_session; ?>" id="exportBtn" class="btn-export">
+                        <i data-lucide="download" style="width:16px;"></i> Export
+                    </a>
                 </div>
             </div>
             <table>
@@ -394,7 +416,7 @@ $participants = $conn->query($list_sql);
                         <th>Improvement</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="participantTableBody">
                     <?php if($participants->num_rows > 0): ?>
                         <?php while($p = $participants->fetch_assoc()): 
                             $improvement = $p['post'] - $p['pre'];
@@ -423,7 +445,7 @@ $participants = $conn->query($list_sql);
                 </tbody>
             </table>
 
-            <div class="pagination-container">
+            <div class="pagination-container" id="paginationContainer">
                 <div>Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
                 <div class="pagination-controls">
                     <?php if($page > 1): $prev = $page - 1; echo "<a href='?id=$id_session&page=$prev&search=$search' class='page-btn'>&lt;</a>"; endif; ?>
@@ -437,6 +459,43 @@ $participants = $conn->query($list_sql);
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         lucide.createIcons();
+
+        // --- LIVE SEARCH SCRIPT ---
+        const searchInput = document.getElementById('searchInput');
+        const tableBody = document.getElementById('participantTableBody');
+        const paginationContainer = document.getElementById('paginationContainer');
+        const exportBtn = document.getElementById('exportBtn');
+        const sessionId = "<?php echo $id_session; ?>";
+
+        // Debounce function to wait for typing to stop
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        // Search Function
+        const performSearch = debounce(function() {
+            const query = searchInput.value;
+            
+            // Update Export Link
+            exportBtn.href = `export_session.php?id=${sessionId}&search=${encodeURIComponent(query)}`;
+
+            // Fetch Data
+            fetch(`?id=${sessionId}&ajax_search=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = data.table;
+                    paginationContainer.innerHTML = data.pagination;
+                    lucide.createIcons(); // Re-init icons if needed inside table
+                })
+                .catch(error => console.error('Error:', error));
+        }, 300); // Wait 300ms after last keystroke
+
+        searchInput.addEventListener('input', performSearch);
     </script>
 </body>
 </html>
