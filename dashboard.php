@@ -21,8 +21,17 @@ if ($f_func2 !== 'All') $where_clauses[] = "f.func_n2 = '$f_func2'";
 if ($f_type !== 'All') $where_clauses[] = "t.jenis = '$f_type'";
 if (!empty($f_search)) $where_clauses[] = "t.nama_training LIKE '%$f_search%'";
 
-// [FIXED] Changed 'ts.tanggal' to 'ts.date_start' to match your DB structure
-if (!empty($f_start) && !empty($f_end)) $where_clauses[] = "ts.date_start BETWEEN '$f_start' AND '$f_end'";
+// --- ROBUST DATE FILTER LOGIC ---
+// This fixes the issue where filtering didn't work unless BOTH dates were picked
+if (!empty($f_start) && !empty($f_end)) {
+    $where_clauses[] = "ts.date_start >= '$f_start' AND ts.date_start <= '$f_end'";
+} elseif (!empty($f_start)) {
+    // Only Start Date selected (Show everything AFTER this date)
+    $where_clauses[] = "ts.date_start >= '$f_start'";
+} elseif (!empty($f_end)) {
+    // Only End Date selected (Show everything BEFORE this date)
+    $where_clauses[] = "ts.date_start <= '$f_end'";
+}
 
 // Apply specific training filter for the TOP STATS only
 if ($f_training_name !== 'All') $where_clauses[] = "t.nama_training = '$f_training_name'";
@@ -88,6 +97,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     <title>GGF - Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
+    
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
@@ -213,32 +223,91 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         }
         .training-info h4 { font-size: 14px; font-weight: 700; color: #333; }
 
-        /* DRAWER */
+        /* DRAWER STYLES */
         .filter-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none;
         }
         .filter-drawer {
-            position: fixed; top: 20px; bottom: 20px; right: -400px; width: 380px; background: white; z-index: 1001;
-            box-shadow: -10px 0 30px rgba(0,0,0,0.15); transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1);
-            display: flex; flex-direction: column; border-radius: 35px; overflow: hidden;
+            position: fixed; top: 20px; bottom: 20px; right: -400px; width: 380px; 
+            background: white; z-index: 1001;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.15); 
+            transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1);
+            display: flex; flex-direction: column; 
+            border-radius: 35px;
         }
         .drawer-open .filter-overlay { display: block; opacity: 1; pointer-events: auto; }
         .drawer-open .filter-drawer { right: 20px; }
-        .drawer-header { background-color: #197B40; color: white; padding: 25px; display: flex; justify-content: space-between; align-items: center; }
+        
+        .drawer-header { 
+            background-color: #197B40; color: white; padding: 25px; 
+            display: flex; justify-content: space-between; align-items: center;
+            border-top-left-radius: 35px; border-top-right-radius: 35px; 
+        }
         .drawer-header h4 { font-size: 16px; font-weight: 600; }
+        
         .drawer-content { padding: 25px; overflow-y: auto; flex-grow: 1; }
+        
         .filter-group { margin-bottom: 20px; }
         .filter-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
         .date-row { display: flex; gap: 10px; }
-        .date-input-wrapper { flex: 1; position: relative; }
-        .date-input-wrapper input { width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; outline: none; color: #333; }
-        .date-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #999; width: 14px; }
+        
+        /* DATE INPUT STYLING (Pill Shape + Native Calendar) */
+        .date-input-wrapper { 
+            position: relative; 
+            flex: 1; 
+        }
+        
+        .date-input-wrapper input[type="date"] { 
+            width: 100%; 
+            padding: 10px 15px 10px 40px; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 50px; 
+            font-size: 13px; 
+            outline: none; 
+            color: #333; 
+            font-family: 'Poppins', sans-serif;
+            background-color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        /* Expand the click area for the native picker */
+        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100%; height: 100%;
+            color: transparent; background: transparent;
+            cursor: pointer;
+        }
+
+        .date-input-wrapper input[type="date"]:hover, 
+        .date-input-wrapper input[type="date"]:focus {
+            border-color: #197B40; 
+            box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1);
+        }
+        
+        .date-icon { 
+            position: absolute; 
+            left: 15px; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            color: #197B40; 
+            width: 16px; 
+            pointer-events: none; 
+            z-index: 1; 
+        }
+
         .filter-group select { 
             width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 8px; outline: none; font-size: 13px; color: #333; appearance: none;
             background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>') no-repeat right 12px center;
         }
-        .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; }
+        
+        .drawer-footer { 
+            padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; 
+            border-bottom-left-radius: 35px; border-bottom-right-radius: 35px;
+        }
         .btn-reset { background: #fff; border: 1px solid #ddd; color: #666; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; transition: 0.2s; }
         .btn-reset:hover { background: #f9f9f9; }
         .btn-apply {
@@ -398,11 +467,11 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <div class="date-row">
                     <div class="date-input-wrapper">
                         <i data-lucide="calendar" class="date-icon"></i>
-                        <input type="text" id="input-date-start" placeholder="YYYY-MM-DD" value="<?php echo $f_start; ?>">
+                        <input type="date" id="input-date-start" value="<?php echo $f_start; ?>">
                     </div>
                     <div class="date-input-wrapper">
                         <i data-lucide="calendar" class="date-icon"></i>
-                        <input type="text" id="input-date-end" placeholder="YYYY-MM-DD" value="<?php echo $f_end; ?>">
+                        <input type="date" id="input-date-end" value="<?php echo $f_end; ?>">
                     </div>
                 </div>
             </div>
@@ -456,7 +525,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
 <script>
     lucide.createIcons();
 
-    // --- 1. INTELLIGENT ROLLING NUMBERS ANIMATION ---
+    // --- 1. ROLLING NUMBERS ANIMATION ---
     function animateValue(obj, start, end, duration) {
         if (start === end) {
             obj.innerHTML = end.toLocaleString();
@@ -466,12 +535,8 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         const step = (timestamp) => {
             if (!startTimestamp) startTimestamp = timestamp;
             const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-            
-            // Math.floor works for both positive (counting up) and negative (counting down) differences
             const currentVal = Math.floor(progress * (end - start) + start);
-            
             obj.innerHTML = currentVal.toLocaleString();
-            
             if (progress < 1) {
                 window.requestAnimationFrame(step);
             } else {
@@ -482,7 +547,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        // Define our counters and their storage keys
+        // Init Counters
         const counters = [
             { id: "counter-total", key: "prev_total" },
             { id: "counter-inclass", key: "prev_inclass" },
@@ -493,20 +558,14 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             const el = document.getElementById(item.id);
             if(el) {
                 const target = parseInt(el.getAttribute("data-target"));
-                
-                // Get the PREVIOUS value from sessionStorage. If none, start at 0.
                 let startVal = parseInt(sessionStorage.getItem(item.key));
                 if (isNaN(startVal)) startVal = 0;
-
-                // Run animation from START -> TARGET
-                animateValue(el, startVal, target, 1000); // 1.0s duration
-
-                // Update sessionStorage with the NEW target so next reload starts from here
+                animateValue(el, startVal, target, 1000); 
                 sessionStorage.setItem(item.key, target);
             }
         });
 
-        // --- 2. RESTORE UI STATE ---
+        // Restore UI State (Specific Training)
         const urlParams = new URLSearchParams(window.location.search);
         const activeTraining = urlParams.get('training_name');
         
@@ -535,8 +594,13 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     }
 
     function applyFilters() {
-        const dStart = document.getElementById('input-date-start').value;
-        const dEnd = document.getElementById('input-date-end').value;
+        // Correctly get values from native inputs
+        const dStartElement = document.getElementById('input-date-start');
+        const dEndElement = document.getElementById('input-date-end');
+        
+        const dStart = dStartElement ? dStartElement.value : '';
+        const dEnd = dEndElement ? dEndElement.value : '';
+        
         const selBu = document.getElementById('select-bu').value;
         const selFuncN1 = document.getElementById('select-func-n1').value;
         const selFuncN2 = document.getElementById('select-func-n2').value;
@@ -549,8 +613,11 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         if(selFuncN1 !== 'All') params.set('func_n1', selFuncN1); else params.delete('func_n1');
         if(selFuncN2 !== 'All') params.set('func_n2', selFuncN2); else params.delete('func_n2');
         if(selType !== 'All') params.set('type', selType); else params.delete('type');
-        if(dStart) params.set('start', dStart);
-        if(dEnd) params.set('end', dEnd);
+        
+        // Handle dates: Only set if value exists
+        if(dStart) params.set('start', dStart); else params.delete('start');
+        if(dEnd) params.set('end', dEnd); else params.delete('end');
+        
         if(searchVal) params.set('search', searchVal);
 
         window.location.search = params.toString();
