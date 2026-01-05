@@ -14,7 +14,77 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10;
 $offset = ($page - 1) * $limit;
 
-// --- 2. BUILD SQL QUERY ---
+// ==========================================
+//  AJAX HANDLER (For Live Search)
+// ==========================================
+if (isset($_GET['ajax_search'])) {
+    $search_term = $_GET['ajax_search'];
+    
+    // Build specific search query
+    $where_ajax = ["1=1"];
+    if (!empty($search_term)) {
+        $safe_search = $conn->real_escape_string($search_term);
+        $where_ajax[] = "t.nama_training LIKE '%$safe_search%'";
+    }
+    $where_sql_ajax = implode(' AND ', $where_ajax);
+
+    // Count
+    $count_sql = "SELECT COUNT(DISTINCT ts.id_session) as total FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql_ajax";
+    $total_records = $conn->query($count_sql)->fetch_assoc()['total'];
+    
+    // Fetch
+    $data_sql = "
+        SELECT ts.id_session, t.nama_training, t.jenis AS type, ts.method, ts.date_start AS date, 
+               COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
+        FROM training_session ts
+        JOIN training t ON ts.id_training = t.id_training
+        LEFT JOIN score s ON ts.id_session = s.id_session
+        WHERE $where_sql_ajax
+        GROUP BY ts.id_session
+        ORDER BY ts.date_start DESC
+        LIMIT $limit OFFSET 0 
+    "; 
+    $result = $conn->query($data_sql);
+
+    // Build HTML
+    ob_start();
+    if ($result->num_rows > 0) {
+        while($row = $result->fetch_assoc()) {
+            $typeClass = (stripos($row['type'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['type'], 'Soft') !== false) ? 'type-soft' : 'type-default');
+            $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
+            $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
+            ?>
+            <tr>
+                <td>
+                    <div class="training-cell">
+                        <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <span class="training-name-text"><?php echo htmlspecialchars($row['nama_training']); ?></span>
+                    </div>
+                </td>
+                <td><?php echo date('M d, Y', strtotime($row['date'])); ?></td>
+                <td><span class="badge <?php echo $typeClass; ?>"><?php echo htmlspecialchars($row['type']); ?></span></td>
+                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
+                <td><?php echo $row['participants']; ?></td>
+                <td class="score"><?php echo $avgScore; ?></td>
+                <td>
+                    <button class="btn-view" onclick="window.location.href='tdetails.php?id=<?php echo $row['id_session']; ?>'">
+                        <span>View Details</span>
+                        <svg><rect x="0" y="0"></rect></svg>
+                    </button>
+                </td>
+            </tr>
+            <?php
+        }
+    } else {
+        echo '<tr><td colspan="7" style="text-align:center; color:#888;">No records found.</td></tr>';
+    }
+    $html = ob_get_clean();
+    
+    echo json_encode(['html' => $html, 'total' => $total_records]);
+    exit;
+}
+
+// --- 2. BUILD SQL QUERY (Standard Load) ---
 $where_clauses = ["1=1"];
 
 if (!empty($search)) {
@@ -26,8 +96,14 @@ if ($filter_type !== 'All Types') {
 if ($filter_method !== 'All Methods') {
     $where_clauses[] = "ts.method = '" . $conn->real_escape_string($filter_method) . "'";
 }
+
+// --- UPDATED ROBUST DATE LOGIC ---
 if (!empty($start_date) && !empty($end_date)) {
-    $where_clauses[] = "ts.date_start BETWEEN '$start_date' AND '$end_date'";
+    $where_clauses[] = "ts.date_start >= '$start_date' AND ts.date_start <= '$end_date'";
+} elseif (!empty($start_date)) {
+    $where_clauses[] = "ts.date_start >= '$start_date'";
+} elseif (!empty($end_date)) {
+    $where_clauses[] = "ts.date_start <= '$end_date'";
 }
 
 $where_sql = implode(' AND ', $where_clauses);
@@ -84,7 +160,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         .main-wrapper {
             background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto;
             transition: all 0.4s cubic-bezier(0.32, 1, 0.23, 1); transform-origin: center left;
-            width: 100%; position: relative;
+            width: 100%; position: relative; display: flex; flex-direction: column;
         }
         .drawer-open .main-wrapper {
             transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto;
@@ -114,7 +190,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         .btn-signout:hover { background-color: #b71c1c; }
 
         /* --- REPORT CARD --- */
-        .report-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 50px; }
+        .report-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 50px; flex-grow: 1; display: flex; flex-direction: column; }
         .report-header { background-color: #197B40; padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; color: white; }
         .header-actions { display: flex; align-items: center; gap: 12px; }
 
@@ -128,7 +204,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         .btn-action:hover { background: #f0f0f0; }
 
         /* --- TABLE --- */
-        .table-container { padding: 20px 40px 0 40px; }
+        .table-container { padding: 20px 40px 0 40px; flex-grow: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; font-size: 13px; color: #888; padding: 15px 0; border-bottom: 1px solid #eee; }
         td { padding: 20px 0; font-size: 14px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
@@ -147,7 +223,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         
         .score { color: #197B40; font-weight: bold; }
 
-        /* --- VIEW BUTTON (Consistent Style) --- */
+        /* --- VIEW BUTTON --- */
         .btn-view {
             position: relative;
             background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%);
@@ -174,61 +250,22 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         }
         .btn-view rect {
             width: 100%; height: 100%; rx: 25px; ry: 25px;
-            stroke: url(#multiColorGradient); /* Matches SVG in body */
+            stroke: url(#multiColorGradient);
             stroke-width: 2; stroke-dasharray: 120, 380; stroke-dashoffset: 0;
             opacity: 0; transition: opacity 0.3s;
         }
         .btn-view:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
 
-        /* --- APPLY FILTER BUTTON (MATCHING DASHBOARD) --- */
-        .btn-apply {
-            position: relative; 
-            background: #197B40; 
-            color: white; 
-            border: none; 
-            padding: 12px 24px; 
-            border-radius: 25px;
-            flex: 1; 
-            font-weight: 600; 
-            cursor: pointer; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            gap: 8px; 
-            transition: background 0.2s; 
-            overflow: visible;
-        }
-        .btn-apply span { position: relative; z-index: 2; }
-        .btn-apply svg { 
-            position: absolute; top: -2px; left: -2px; 
-            width: calc(100% + 4px); height: calc(100% + 4px); 
-            fill: none; pointer-events: none; overflow: visible; 
-        }
-        .btn-apply rect { 
-            width: 100%; height: 100%; rx: 25px; ry: 25px; 
-            stroke: #FF9A02; /* Dashboard uses Orange stroke */
-            stroke-width: 3; 
-            stroke-dasharray: 120, 380; 
-            stroke-dashoffset: 0; 
-            opacity: 0; 
-            transition: opacity 0.3s; 
-        }
-        .btn-apply:hover { background: #145a32; }
-        .btn-apply:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
+        @keyframes snakeMove { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
 
-        @keyframes snakeMove {
-            from { stroke-dashoffset: 500; }
-            to { stroke-dashoffset: 0; }
-        }
-
-        /* --- FOOTER & DRAWER --- */
-        .table-footer { padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; color: #7a7a7a; font-size: 13px; }
+        /* --- FOOTER --- */
+        .table-footer { padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; color: #7a7a7a; font-size: 13px; border-top: 1px solid #f9f9f9; }
         .pagination { display: flex; align-items: center; gap: 8px; }
         .page-num { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; text-decoration: none; color: #4a4a4a; font-weight: 500; }
         .page-num.active { background-color: #197B40; color: white; }
         .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; }
 
-        /* Drawer */
+        /* --- DRAWER --- */
         .filter-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
         .filter-drawer { position: fixed; top: 20px; bottom: 20px; right: -400px; width: 380px; background: white; z-index: 1001; box-shadow: -10px 0 30px rgba(0,0,0,0.15); transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1); display: flex; flex-direction: column; border-radius: 35px; overflow: hidden; }
         .drawer-open .filter-overlay { display: block; opacity: 1; pointer-events: auto; }
@@ -239,11 +276,72 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
         .filter-group label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 10px; }
         .filter-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 12px; outline: none; }
         .date-row { display: flex; gap: 10px; }
-        .date-input-wrapper { flex: 1; }
-        .date-input-wrapper input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
         
+        /* --- CLICKABLE DATE PILL LOGIC --- */
+        .date-input-wrapper { 
+            position: relative; 
+            flex: 1; 
+        }
+        
+        .date-input-wrapper input[type="date"] { 
+            width: 100%; 
+            padding: 10px 40px 10px 20px; /* Padding-right for icon */
+            border: 1px solid #e0e0e0; 
+            border-radius: 50px; 
+            font-size: 13px; 
+            outline: none; 
+            color: #333; 
+            font-family: 'Poppins', sans-serif;
+            background-color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        /* This magic selector expands the clickable native trigger to cover the whole input */
+        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            opacity: 0; /* Make it invisible but clickable */
+            cursor: pointer;
+        }
+
+        .date-input-wrapper input[type="date"]:hover, .date-input-wrapper input[type="date"]:focus {
+            border-color: #197B40; 
+            box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1);
+        }
+        
+        /* Custom Icon placed behind the invisible trigger */
+        .custom-date-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #197B40;
+            width: 18px;
+            height: 18px;
+            pointer-events: none; /* Let clicks pass through */
+            z-index: 1;
+        }
+
         .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; }
         .btn-reset { background: #f3f4f7; color: #666; border: none; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; }
+        
+        .btn-apply {
+            position: relative; background: #197B40; color: white; border: none; padding: 12px 24px; border-radius: 25px;
+            flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; 
+            transition: background 0.2s; overflow: visible;
+        }
+        .btn-apply span { position: relative; z-index: 2; }
+        .btn-apply svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
+        .btn-apply rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #FF9A02; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
+        .btn-apply:hover { background: #145a32; }
+        .btn-apply:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
     </style>
 </head>
 <body id="body">
@@ -260,13 +358,11 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
     <div class="main-wrapper">
         <nav class="navbar">
             <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
-            
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
                 <a href="#" class="active">Reports</a>
                 <a href="upload.php">Upload Data</a>
             </div>
-
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle">AD</div></div>
                 <a href="login.html" class="btn-signout">Sign Out</a>
@@ -277,10 +373,10 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
             <div class="report-header">
                 <h3>Training Sessions Report</h3>
                 <div class="header-actions">
-                    <form id="searchForm" class="search-bar" onsubmit="event.preventDefault(); applyFilters();">
+                    <div class="search-bar">
                         <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
-                        <input type="text" id="searchInput" placeholder="Search training name..." value="<?php echo htmlspecialchars($search); ?>">
-                    </form>
+                        <input type="text" id="liveSearchInput" placeholder="Search training name..." value="<?php echo htmlspecialchars($search); ?>">
+                    </div>
                     
                     <button class="btn-action" onclick="toggleDrawer()">
                         <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
@@ -307,17 +403,11 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
                             <th>Action</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="tableBody">
                         <?php if ($result->num_rows > 0): ?>
                             <?php while($row = $result->fetch_assoc()): 
-                                $typeClass = 'type-default';
-                                if (stripos($row['type'], 'Technical') !== false) $typeClass = 'type-tech';
-                                elseif (stripos($row['type'], 'Soft') !== false) $typeClass = 'type-soft';
-
-                                $methodClass = 'method-default';
-                                if (stripos($row['method'], 'Inclass') !== false) $methodClass = 'method-inclass';
-                                elseif (stripos($row['method'], 'Online') !== false || stripos($row['method'], 'Webinar') !== false) $methodClass = 'method-online';
-                                
+                                $typeClass = (stripos($row['type'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['type'], 'Soft') !== false) ? 'type-soft' : 'type-default');
+                                $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
                                 $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
                             ?>
                             <tr>
@@ -348,10 +438,10 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
             </div>
 
             <div class="table-footer">
-                <div class="records-info">
+                <div class="records-info" id="recordInfo">
                     Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records
                 </div>
-                <div class="pagination">
+                <div class="pagination" id="paginationControls">
                     <?php if($page > 1): ?>
                         <a href="?page=<?php echo $page-1; ?>&<?php echo http_build_query(array_diff_key($_GET, ['page'=>''])); ?>" class="btn-next" style="transform: rotate(180deg); display:inline-block;"><i data-lucide="chevron-right" style="width:16px;"></i></a>
                     <?php endif; ?>
@@ -407,9 +497,11 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
                 <div class="date-row">
                     <div class="date-input-wrapper">
                         <input type="date" id="startDate" value="<?php echo $start_date; ?>">
+                        <i data-lucide="calendar" class="custom-date-icon"></i>
                     </div>
                     <div class="date-input-wrapper">
                         <input type="date" id="endDate" value="<?php echo $end_date; ?>">
+                        <i data-lucide="calendar" class="custom-date-icon"></i>
                     </div>
                 </div>
             </div>
@@ -432,8 +524,38 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
             document.getElementById('body').classList.toggle('drawer-open');
         }
 
+        // --- LIVE SEARCH LOGIC ---
+        const searchInput = document.getElementById('liveSearchInput');
+        const tableBody = document.getElementById('tableBody');
+        const recordInfo = document.getElementById('recordInfo');
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        const performSearch = debounce(function() {
+            const query = searchInput.value;
+            fetch(`?ajax_search=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = data.html;
+                    recordInfo.textContent = `Found ${data.total} records`;
+                    lucide.createIcons(); // Re-init icons
+                })
+                .catch(error => console.error('Error:', error));
+                
+        }, 300); // 300ms delay
+
+        searchInput.addEventListener('input', performSearch);
+
+        // --- FILTER DRAWER LOGIC ---
         function applyFilters() {
-            const search = document.getElementById('searchInput').value;
+            const search = document.getElementById('liveSearchInput').value;
             const type = document.getElementById('filterType').value;
             const method = document.getElementById('filterMethod').value;
             const start = document.getElementById('startDate').value;
