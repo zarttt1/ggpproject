@@ -101,16 +101,20 @@ $join_sql = "
     WHERE $where_sql
 ";
 
-// --- 3. CALCULATE STATS ---
+// --- 3. CALCULATE STATS (UPDATED LOGIC) ---
+
+// 3.1 Total Hours
 $res_hours = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql);
 $row_hours = $res_hours->fetch_assoc();
 $total_hours_raw = $row_hours['total'] ?? 0;
 
-$res_inclass = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND ts.method LIKE '%Class%'");
-$row_inclass = $res_inclass->fetch_assoc();
-$hours_inclass_raw = $row_inclass['total'] ?? 0;
+// 3.2 Offline Hours (Method contains "Inclass")
+$res_offline = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND ts.method LIKE '%Inclass%'");
+$row_offline = $res_offline->fetch_assoc();
+$hours_offline_raw = $row_offline['total'] ?? 0;
 
-$res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Online%' OR ts.method LIKE '%Self%')");
+// 3.3 Online Hours (Method contains "Hybrid" OR "Webinar")
+$res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Hybrid%' OR ts.method LIKE '%Webinar%')");
 $row_online = $res_online->fetch_assoc();
 $hours_online_raw = $row_online['total'] ?? 0;
 
@@ -460,14 +464,14 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <div class="breakdown-item">
                     <div class="icon-box"><img src="icons/inclass.ico" style="width: 35px; height: 35px;"></div>
                     <div class="b-text">
-                        <h4>In-Class Training</h4>
-                        <p><span id="counter-inclass" data-target="<?php echo $hours_inclass_raw; ?>">0</span>h</p>
+                        <h4>Offline Training</h4>
+                        <p><span id="counter-offline" data-target="<?php echo $hours_offline_raw; ?>">0</span>h</p>
                     </div>
                 </div>
                 <div class="breakdown-item">
-                    <div class="icon-box"><img src="icons/selfpaced.ico" style="width: 35px; height: 35 px;"></div>
+                    <div class="icon-box"><img src="icons/selfpaced.ico" style="width: 35px; height: 35px;"></div>
                     <div class="b-text">
-                        <h4>Self-Paced Online</h4>
+                        <h4>Online Training</h4>
                         <p><span id="counter-online" data-target="<?php echo $hours_online_raw; ?>">0</span>h</p>
                     </div>
                 </div>
@@ -603,8 +607,8 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         // Init Counters
         const counters = [
             { id: "counter-total", key: "prev_total" },
-            { id: "counter-inclass", key: "prev_inclass" },
-            { id: "counter-online", key: "prev_online" }
+            { id: "counter-offline", key: "prev_offline" }, // CHANGED from inclass
+            { id: "counter-online", key: "prev_online" }    // Kept as online
         ];
 
         counters.forEach(item => {
