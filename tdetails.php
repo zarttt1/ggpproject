@@ -1,6 +1,16 @@
 <?php
 session_start();
-require 'db_connect.php';
+require 'db_connect.php'; // Use your centralized database connection
+
+// 1. Security Check: Redirect if not logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.html");
+    exit();
+}
+
+// 2. Get User Details for Navbar
+$username = $_SESSION['username'] ?? 'User';
+$initials = strtoupper(substr($username, 0, 2));
 
 // Validate ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -191,6 +201,7 @@ $participants = $conn->query($list_sql);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GGF - Training Details</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
@@ -290,11 +301,15 @@ $participants = $conn->query($list_sql);
 
     <div class="main-wrapper">
         <nav class="navbar">
-            <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
+            <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
-                <a href="dashboard.php">Dashboard</a>
-                <a href="reports.php" class="active">Reports</a>
-                <a href="upload.php">Upload Data</a>
+                <a href="dashboard.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>">Dashboard</a>
+                <a href="reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">Reports</a>
+                <a href="upload.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'upload.php' ? 'active' : ''; ?>">Upload Data</a>
+                
+                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="users.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>">Users</a>
+                <?php endif; ?>
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle">AD</div></div>

@@ -1,5 +1,10 @@
 <?php
 session_start();
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.html");
+    exit();
+}
 require 'db_connect.php';
 
 // ==========================================
@@ -371,11 +376,15 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
 
     <div class="main-wrapper">
         <nav class="navbar">
-            <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
+            <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
-                <a href="#" class="active">Dashboard</a>
-                <a href="reports.php">Reports</a>
-                <a href="upload.php">Upload Data</a>
+                <a href="dashboard.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>">Dashboard</a>
+                <a href="reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">Reports</a>
+                <a href="upload.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'upload.php' ? 'active' : ''; ?>">Upload Data</a>
+                
+                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="users.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>">Users</a>
+                <?php endif; ?>
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle">AD</div></div>
