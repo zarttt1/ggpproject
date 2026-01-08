@@ -2,7 +2,58 @@
 session_start();
 require 'db_connect.php';
 
-// --- 1. GET FILTER VALUES FROM URL ---
+// ==========================================
+//  1. AJAX HANDLER (For Live Search)
+// ==========================================
+if (isset($_GET['ajax_search'])) {
+    $search_term = $_GET['ajax_search'];
+    
+    // We rebuild the basic joins to ensure we get valid data available in the system
+    // We group by training name to show unique programs
+    $base_sql = "
+        SELECT t.nama_training
+        FROM score s
+        JOIN training_session ts ON s.id_session = ts.id_session
+        JOIN training t ON ts.id_training = t.id_training
+        LEFT JOIN bu b ON s.id_bu = b.id_bu
+        LEFT JOIN func f ON s.id_func = f.id_func
+    ";
+
+    $where_ajax = ["1=1"];
+    if (!empty($search_term)) {
+        $safe_search = $conn->real_escape_string($search_term);
+        $where_ajax[] = "t.nama_training LIKE '%$safe_search%'";
+    }
+    
+    $sql_ajax = $base_sql . " WHERE " . implode(' AND ', $where_ajax) . " GROUP BY t.nama_training LIMIT 50";
+    
+    $result = $conn->query($sql_ajax);
+
+    if ($result->num_rows > 0) {
+        while($row = $result->fetch_assoc()) {
+            // Output the exact HTML structure for a dashboard list item
+            ?>
+            <div class="training-item" onclick="selectTraining(this, '<?php echo addslashes($row['nama_training']); ?>')">
+                <div class="training-name-col">
+                    <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
+                    <div class="training-info"><h4><?php echo htmlspecialchars($row['nama_training']); ?></h4></div>
+                </div>
+            </div>
+            <?php
+        }
+    } else {
+        echo '<div class="training-item"><div style="padding:10px; color:#777;">No training programs found.</div></div>';
+    }
+    exit; // Stop execution here for AJAX calls
+}
+// ==========================================
+//  END AJAX HANDLER
+// ==========================================
+
+
+// --- 2. STANDARD PAGE LOAD LOGIC ---
+
+// Get Filter Values
 $f_bu = $_GET['bu'] ?? 'All';
 $f_func1 = $_GET['func_n1'] ?? 'All';
 $f_func2 = $_GET['func_n2'] ?? 'All';
@@ -12,7 +63,7 @@ $f_start = $_GET['start'] ?? '';
 $f_end = $_GET['end'] ?? '';
 $f_training_name = $_GET['training_name'] ?? 'All';
 
-// --- 2. BUILD SQL QUERY ---
+// Build SQL Query
 $where_clauses = ["1=1"];
 
 if ($f_bu !== 'All') $where_clauses[] = "b.nama_bu = '$f_bu'";
@@ -21,15 +72,12 @@ if ($f_func2 !== 'All') $where_clauses[] = "f.func_n2 = '$f_func2'";
 if ($f_type !== 'All') $where_clauses[] = "t.jenis = '$f_type'";
 if (!empty($f_search)) $where_clauses[] = "t.nama_training LIKE '%$f_search%'";
 
-// --- ROBUST DATE FILTER LOGIC ---
-// This fixes the issue where filtering didn't work unless BOTH dates were picked
+// Date Logic (Robust)
 if (!empty($f_start) && !empty($f_end)) {
     $where_clauses[] = "ts.date_start >= '$f_start' AND ts.date_start <= '$f_end'";
 } elseif (!empty($f_start)) {
-    // Only Start Date selected (Show everything AFTER this date)
     $where_clauses[] = "ts.date_start >= '$f_start'";
 } elseif (!empty($f_end)) {
-    // Only End Date selected (Show everything BEFORE this date)
     $where_clauses[] = "ts.date_start <= '$f_end'";
 }
 
@@ -49,22 +97,19 @@ $join_sql = "
 ";
 
 // --- 3. CALCULATE STATS ---
-// Total Hours
 $res_hours = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql);
 $row_hours = $res_hours->fetch_assoc();
 $total_hours_raw = $row_hours['total'] ?? 0;
 
-// Breakdown: In-Class
 $res_inclass = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND ts.method LIKE '%Class%'");
 $row_inclass = $res_inclass->fetch_assoc();
 $hours_inclass_raw = $row_inclass['total'] ?? 0;
 
-// Breakdown: Online
 $res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Online%' OR ts.method LIKE '%Self%')");
 $row_online = $res_online->fetch_assoc();
 $hours_online_raw = $row_online['total'] ?? 0;
 
-// --- 4. FETCH TRAINING LIST ---
+// --- 4. FETCH TRAINING LIST (Initial Load) ---
 // Exclude specific training filter for the list so user sees all options
 $where_clauses_list = array_diff($where_clauses, ["t.nama_training = '$f_training_name'"]);
 $where_sql_list = implode(' AND ', $where_clauses_list);
@@ -97,7 +142,6 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     <title>GGF - Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
-    
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
@@ -427,7 +471,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <div class="header-actions">
                     <div class="search-box">
                         <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
-                        <input type="text" id="search-input" placeholder="Search training name..." value="<?php echo htmlspecialchars($f_search); ?>" onkeypress="if(event.key === 'Enter') applyFilters()">
+                        <input type="text" id="dashboardSearchInput" placeholder="Search training name..." value="<?php echo htmlspecialchars($f_search); ?>">
                     </div>
                     <button class="btn-filter" onclick="toggleDrawer()">
                         <img src="icons/filter.ico" style="width: 24px; height: 24px; transform: scale(1.8); margin-right: 4px;"> 
@@ -436,7 +480,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 </div>
             </div>
 
-            <div class="training-list">
+            <div class="training-list" id="trainingListContainer">
                 <div class="training-header">
                     <div>Training Name</div>
                 </div>
@@ -584,6 +628,36 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         }
     });
 
+    // --- 2. LIVE SEARCH LOGIC (AJAX) ---
+    const searchInput = document.getElementById('dashboardSearchInput');
+    const listContainer = document.getElementById('trainingListContainer');
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    }
+
+    const performSearch = debounce(function() {
+        const query = searchInput.value;
+        // AJAX Call
+        fetch(`?ajax_search=${encodeURIComponent(query)}`)
+            .then(response => response.text())
+            .then(html => {
+                // Keep the header, replace list items
+                listContainer.innerHTML = '<div class="training-header"><div>Training Name</div></div>' + html;
+                lucide.createIcons(); // Re-initialize icons for new items
+            })
+            .catch(error => console.error('Error:', error));
+    }, 300); // 300ms delay
+
+    if(searchInput) {
+        searchInput.addEventListener('input', performSearch);
+    }
+
     // --- 3. FILTER LOGIC ---
     function toggleDrawer() { document.getElementById('body').classList.toggle('drawer-open'); }
 
@@ -594,18 +668,13 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     }
 
     function applyFilters() {
-        // Correctly get values from native inputs
-        const dStartElement = document.getElementById('input-date-start');
-        const dEndElement = document.getElementById('input-date-end');
-        
-        const dStart = dStartElement ? dStartElement.value : '';
-        const dEnd = dEndElement ? dEndElement.value : '';
-        
+        const dStart = document.getElementById('input-date-start').value;
+        const dEnd = document.getElementById('input-date-end').value;
         const selBu = document.getElementById('select-bu').value;
         const selFuncN1 = document.getElementById('select-func-n1').value;
         const selFuncN2 = document.getElementById('select-func-n2').value;
         const selType = document.getElementById('select-type').value;
-        const searchVal = document.getElementById('search-input').value;
+        const searchVal = document.getElementById('dashboardSearchInput').value;
 
         const params = new URLSearchParams(window.location.search);
         
@@ -614,7 +683,6 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         if(selFuncN2 !== 'All') params.set('func_n2', selFuncN2); else params.delete('func_n2');
         if(selType !== 'All') params.set('type', selType); else params.delete('type');
         
-        // Handle dates: Only set if value exists
         if(dStart) params.set('start', dStart); else params.delete('start');
         if(dEnd) params.set('end', dEnd); else params.delete('end');
         

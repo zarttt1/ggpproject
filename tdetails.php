@@ -306,7 +306,7 @@ $participants = $conn->query($list_sql);
             <a href="reports.php" class="back-btn"><i data-lucide="arrow-left" style="width:14px;"></i> Back</a>
             
             <div class="hero-left">
-                <img src="mascot_pineapple.png" alt="Mascot" class="mascot-img">
+                <img src="icons/Pina - Info.png" alt="Mascot" class="mascot-img">
                 <div class="hero-text">
                     <h4>Training Session Report</h4>
                     <h1><?php echo $training_name; ?></h1>
