@@ -110,7 +110,7 @@ if (isset($_GET['ajax_search'])) {
 
 // --- 1. GET SESSION METADATA ---
 $meta_sql = "
-    SELECT t.nama_training, ts.date_start 
+    SELECT t.nama_training, ts.code_sub, ts.date_start 
     FROM training_session ts 
     JOIN training t ON ts.id_training = t.id_training 
     WHERE ts.id_session = $id_session
@@ -124,6 +124,7 @@ if ($meta_result->num_rows == 0) {
 
 $meta = $meta_result->fetch_assoc();
 $training_name = htmlspecialchars($meta['nama_training']);
+$code_sub = htmlspecialchars($meta['code_sub']);
 $training_date = date('d M Y', strtotime($meta['date_start']));
 
 // --- 2. CALCULATE STATS ---
@@ -352,6 +353,9 @@ $preHistData = [
                 <div class="hero-text">
                     <h4>Training Session Report</h4>
                     <h1><?php echo $training_name; ?></h1>
+                    <div style="font-size: 13px; opacity: 0.8; margin-bottom: 5px;">
+                        Code: <strong><?php echo $code_sub; ?></strong>
+                    </div>
                     <div class="hero-meta">
                         <i data-lucide="calendar" style="width:16px;"></i> <?php echo $training_date; ?>
                         <span style="margin: 0 10px;">|</span>
