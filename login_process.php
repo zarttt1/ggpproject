@@ -39,6 +39,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // Redirect back to login with error (simple implementation)
     // Ideally, pass error via session or GET parameter
-    echo "<script>alert('$error'); window.location.href='login.html';</script>";
+    echo "<script>alert('$error'); window.location.href='login.php';</script>";
 }
 ?>

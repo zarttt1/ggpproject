@@ -4,7 +4,7 @@ require 'db_connect.php'; // Use your centralized database connection
 
 // 1. Security Check
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.html");
+    header("Location: login.php");
     exit();
 }
 
@@ -230,7 +230,7 @@ $preHistData = [
         
         /* NAVBAR */
         .navbar {
-            background-color: #197B40; height: 70px; border-radius: 0px 0px 50px 50px; 
+            background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
             margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; 
         }
@@ -341,7 +341,7 @@ $preHistData = [
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle"><?php echo $initials; ?></div></div>
-                <a href="login.html" class="btn-signout">Sign Out</a>
+                <a href="logout.php" class="btn-signout">Sign Out</a>
             </div>
         </nav>
 

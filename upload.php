@@ -4,7 +4,7 @@ require 'db_connect.php';
 
 // 1. Security Check
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.html");
+    header("Location: login.php");
     exit();
 }
 
@@ -38,7 +38,7 @@ unset($_SESSION['update_logs']);
         
         /* NAVBAR */
         .navbar {
-            background-color: #197B40; height: 70px; border-radius: 0px 0px 50px 50px; 
+            background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
             margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
             flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; 
@@ -129,7 +129,8 @@ unset($_SESSION['update_logs']);
             <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="reports.php">Reports</a>
+                <a href="reports.php">Trainings</a>
+                <a href="employee_reports.php">Employees</a>
                 <a href="upload.php" class="active">Upload Data</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="users.php">Users</a>
@@ -137,7 +138,7 @@ unset($_SESSION['update_logs']);
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle"><?php echo $initials; ?></div></div>
-                <a href="login.html" class="btn-signout">Sign Out</a>
+                <a href="logout.php" class="btn-signout">Sign Out</a>
             </div>
         </nav>
 

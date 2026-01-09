@@ -1,6 +1,13 @@
 <?php
 require 'db_connect.php';
+session_start();
 
+// Check if the user is already logged in
+if (isset($_SESSION['user_id'])) {
+    // Redirect to the dashboard (or index.php)
+    header("Location: dashboard.php");
+    exit();
+}
 $message = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -25,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->bind_param("ss", $username, $hashed_password);
 
         if ($stmt->execute()) {
-            $message = "<div style='color: #065f46; background: #d1fae5; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 13px;'>Request sent! Waiting for Admin approval. <a href='login.html'>Back to Login</a></div>";
+            $message = "<div style='color: #065f46; background: #d1fae5; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 13px;'>Request sent! Waiting for Admin approval. <a href='login.php'>Back to Login</a></div>";
         } else {
             $message = "<div style='color: #d32f2f; background: #fee2e2; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 13px;'>Error submitting request.</div>";
         }
@@ -92,7 +99,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </form>
 
         <div class="footer-link">
-            Already have an account? <a href="login.html">Login here</a>
+            Already have an account? <a href="login.php">Login here</a>
         </div>
     </div>
 </body>

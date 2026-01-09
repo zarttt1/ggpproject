@@ -3,16 +3,19 @@ session_start();
 require 'db_connect.php'; 
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.html");
+    header("Location: login.php");
     exit();
 }
 
 $username = $_SESSION['username'] ?? 'User';
 $initials = strtoupper(substr($username, 0, 2));
 
+// --- GET PARAMETERS ---
 $search = $_GET['search'] ?? '';
 $filter_type = $_GET['type'] ?? 'All Types';
 $filter_method = $_GET['method'] ?? 'All Methods';
+// 1. New Code Filter
+$filter_code = $_GET['code'] ?? 'All Codes'; 
 $start_date = $_GET['start'] ?? '';
 $end_date = $_GET['end'] ?? '';
 
@@ -20,13 +23,12 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10;
 $offset = ($page - 1) * $limit;
 
-// --- AJAX HANDLER ---
+// --- AJAX HANDLER (Live Search) ---
 if (isset($_GET['ajax_search'])) {
     $search_term = $_GET['ajax_search'];
     $where_ajax = ["1=1"];
     if (!empty($search_term)) {
         $safe_search = $conn->real_escape_string($search_term);
-        // Added search capability for code_sub
         $where_ajax[] = "(t.nama_training LIKE '%$safe_search%' OR ts.code_sub LIKE '%$safe_search%')";
     }
     $where_sql_ajax = implode(' AND ', $where_ajax);
@@ -34,7 +36,7 @@ if (isset($_GET['ajax_search'])) {
     $count_sql = "SELECT COUNT(DISTINCT ts.id_session) as total FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql_ajax";
     $total_records = $conn->query($count_sql)->fetch_assoc()['total'];
     
-    // FETCH DATA including code_sub
+    // FETCH DATA
     $data_sql = "
         SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS type, ts.method, ts.date_start AS date, 
                COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
@@ -89,11 +91,20 @@ if (isset($_GET['ajax_search'])) {
 
 // --- STANDARD LOAD QUERY ---
 $where_clauses = ["1=1"];
+
+// Search Filter
 if (!empty($search)) {
     $where_clauses[] = "(t.nama_training LIKE '%" . $conn->real_escape_string($search) . "%' OR ts.code_sub LIKE '%" . $conn->real_escape_string($search) . "%')";
 }
+
+// Dropdown Filters
 if ($filter_type !== 'All Types') $where_clauses[] = "t.jenis = '" . $conn->real_escape_string($filter_type) . "'";
 if ($filter_method !== 'All Methods') $where_clauses[] = "ts.method = '" . $conn->real_escape_string($filter_method) . "'";
+
+// 2. Add Code Filter Logic
+if ($filter_code !== 'All Codes') $where_clauses[] = "ts.code_sub = '" . $conn->real_escape_string($filter_code) . "'";
+
+// Date Filter
 if (!empty($start_date) && !empty($end_date)) {
     $where_clauses[] = "ts.date_start >= '$start_date' AND ts.date_start <= '$end_date'";
 } elseif (!empty($start_date)) {
@@ -122,8 +133,11 @@ $data_sql = "
 ";
 $result = $conn->query($data_sql);
 
+// --- FETCH OPTION LISTS FOR DROPDOWNS ---
 $types_opt = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis");
 $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method");
+// 3. Fetch Distinct Codes
+$codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -134,12 +148,12 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
-        /* (KEEP ALL YOUR EXISTING CSS HERE - I HAVE NOT CHANGED STYLES) */
+        /* (EXISTING CSS - Unchanged) */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
         .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; display: flex; flex-direction: column; }
         .drawer-open .main-wrapper { transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto; box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden; }
-        .navbar { background-color: #197B40; height: 70px; border-radius: 0px 0px 50px 50px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; }
+        .navbar { background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
         .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
@@ -218,10 +232,11 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
 
     <div class="main-wrapper">
         <nav class="navbar">
-            <div class="logo-section"><img src="GGF_logo024_putih.png" alt="GGF Logo"></div>
+            <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="reports.php" class="active">Reports</a>
+                <a href="reports.php" class="active">Trainings</a>
+                <a href="employee_reports.php">Employees</a>
                 <a href="upload.php">Upload Data</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="users.php">Users</a>
@@ -229,7 +244,7 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle"><?php echo $initials; ?></div></div>
-                <a href="login.html" class="btn-signout">Sign Out</a>
+                <a href="logout.php" class="btn-signout">Sign Out</a>
             </div>
         </nav>
 
@@ -348,6 +363,19 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
                     <?php endwhile; ?>
                 </select>
             </div>
+            
+            <div class="filter-group">
+                <label>Sub Code</label>
+                <select id="filterCode">
+                    <option value="All Codes">All Codes</option>
+                    <?php while($c = $codes_opt->fetch_assoc()): ?>
+                        <option value="<?php echo htmlspecialchars($c['code_sub']); ?>" <?php if($filter_code == $c['code_sub']) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($c['code_sub']); ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+
             <div class="filter-group">
                 <label>Method</label>
                 <select id="filterMethod">
@@ -423,13 +451,25 @@ $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE 
             const search = document.getElementById('liveSearchInput').value;
             const type = document.getElementById('filterType').value;
             const method = document.getElementById('filterMethod').value;
+            // 5. Get Code Value
+            const code = document.getElementById('filterCode').value;
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
+
+            // 6. DATE VALIDATION: Check if Start > End
+            if (start && end) {
+                if (new Date(start) > new Date(end)) {
+                    alert("Date Range Error: The End Date cannot be earlier than the Start Date.");
+                    return; // Stop the function, do not reload
+                }
+            }
 
             const params = new URLSearchParams();
             if(search) params.set('search', search);
             if(type !== 'All Types') params.set('type', type);
             if(method !== 'All Methods') params.set('method', method);
+            // 7. Set Code Param
+            if(code !== 'All Codes') params.set('code', code);
             if(start) params.set('start', start);
             if(end) params.set('end', end);
 

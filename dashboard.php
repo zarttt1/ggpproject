@@ -2,7 +2,7 @@
 session_start();
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.html");
+    header("Location: login.php");
     exit();
 }
 require 'db_connect.php';
@@ -167,7 +167,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
 
         /* NAVBAR */
         .navbar {
-            background-color: #197B40; height: 70px; border-radius: 0px 0px 50px 50px; 
+            background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
             margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
             position: sticky; top: -20px; z-index: 1000; 
@@ -382,17 +382,17 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         <nav class="navbar">
             <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
-                <a href="dashboard.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>">Dashboard</a>
-                <a href="reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">Reports</a>
-                <a href="upload.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'upload.php' ? 'active' : ''; ?>">Upload Data</a>
-                
+                <a href="dashboard.php" class="active">Dashboard</a>
+                <a href="reports.php">Trainings</a>
+                <a href="employee_reports.php">Employees</a>
+                <a href="upload.php">Upload Data</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                    <a href="users.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>">Users</a>
+                    <a href="users.php">Users</a>
                 <?php endif; ?>
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle">AD</div></div>
-                <a href="login.html" class="btn-signout">Sign Out</a>
+                <a href="logout.php" class="btn-signout">Sign Out</a>
             </div>
         </nav>
 

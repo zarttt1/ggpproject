@@ -36,7 +36,7 @@ if ($result->num_rows > 0) {
             echo "<h3>✅ Admin Account Created!</h3>";
             echo "<p><strong>Username:</strong> $new_username</p>";
             echo "<p><strong>Password:</strong> $new_password</p>";
-            echo "<p><a href='login.html'>Click here to Login</a></p>";
+            echo "<p><a href='login.php'>Click here to Login</a></p>";
             echo "</div>";
             echo "<p style='color: red;'><strong>IMPORTANT:</strong> Please delete this file (create_admin.php) from your server now.</p>";
         } else {

@@ -4,7 +4,7 @@ require 'db_connect.php';
 
 // 1. Security Check
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.html");
+    header("Location: login.php");
     exit();
 }
 
@@ -19,12 +19,13 @@ if (!isset($_GET['id_karyawan']) || empty($_GET['id_karyawan'])) {
 
 $id_karyawan = (int)$_GET['id_karyawan'];
 
-// --- FETCH EMPLOYEE DETAILS ---
+// --- FETCH EMPLOYEE DETAILS (Added func_n2) ---
 $emp_sql = "
     SELECT 
         k.nama_karyawan, k.index_karyawan,
         (SELECT b.nama_bu FROM score s JOIN bu b ON s.id_bu = b.id_bu WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as bu,
-        (SELECT f.func_n1 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as func
+        (SELECT f.func_n1 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as func,
+        (SELECT f.func_n2 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as func2
     FROM karyawan k
     WHERE k.id_karyawan = ?
 ";
@@ -55,7 +56,6 @@ $stmt->execute();
 $stats = $stmt->get_result()->fetch_assoc();
 
 // Format Stats
-$avg_score_display = number_format($stats['avg_score'] ?? 0, 1);
 $total_sessions = $stats['total_sessions'];
 
 // --- FETCH TRAINING HISTORY LIST ---
@@ -97,7 +97,7 @@ while($row = $history_result->fetch_assoc()) {
         
         /* NAVBAR */
         .navbar {
-            background-color: #197B40; height: 70px; border-radius: 0px 0px 50px 50px; 
+            background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
             margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; 
         }
@@ -142,9 +142,10 @@ while($row = $history_result->fetch_assoc()) {
         /* Mascot Section */
         .hero-mascot {
             flex-shrink: 0;
-            width: 180px;
-            height: 180px;
+            width: 200px;
+            height: 200px;
             display: flex;
+            margin-left: -20px;
             align-items: center;
             justify-content: center;
             position: relative;
@@ -156,21 +157,6 @@ while($row = $history_result->fetch_assoc()) {
             height: 100%;
             object-fit: contain;
             filter: drop-shadow(0 10px 30px rgba(0,0,0,0.2));
-        }
-
-        /* Fallback Avatar if no image */
-        .mascot-avatar {
-            width: 140px;
-            height: 140px;
-            background: white;
-            color: #197B40;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 56px;
-            font-weight: 700;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
         }
 
         /* Center Content Section */
@@ -232,37 +218,37 @@ while($row = $history_result->fetch_assoc()) {
         .hero-stats {
             display: flex;
             flex-direction: column;
+            justify-content: center;
             gap: 20px;
             align-items: flex-end;
             position: relative;
             z-index: 2;
+            height: 100%;
         }
 
+        /* Stats Styling Updated: No Background, Yellow Text */
         .stat-box {
             text-align: right;
-            padding: 15px 25px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            min-width: 140px;
+            padding: 0;
+            min-width: auto;
+            /* Background removed */
         }
 
         .stat-value {
-            font-size: 40px;
+            font-size: 50px; /* Slightly larger */
             font-weight: 700;
             line-height: 1;
             margin-bottom: 5px;
+            color: #FED404; /* Yellow color */
         }
 
         .stat-label {
-            font-size: 10px;
+            font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 1px;
-            opacity: 0.8;
+            color: white;
             font-weight: 600;
-        }
-
-        .stat-box.highlight .stat-value {
-            color: #FED404;
+            opacity: 0.9;
         }
 
         /* Back Button */
@@ -312,24 +298,11 @@ while($row = $history_result->fetch_assoc()) {
         .method-online { background: #e0f2f1; color: #00695c; }
         .method-class { background: #f3e5f5; color: #8e24aa; }
         
-        .badge-improvement { background-color: #dcfce7; color: #15803d; } 
-        .badge-decline { background-color: #fee2e2; color: #991b1b; }
-        .badge-neutral { background-color: #f3f4f6; color: #6b7280; }
-
         /* Responsive adjustments */
         @media (max-width: 1200px) {
-            .hero-mascot {
-                width: 140px;
-                height: 140px;
-            }
-            
-            .hero-name {
-                font-size: 28px;
-            }
-            
-            .stat-value {
-                font-size: 32px;
-            }
+            .hero-mascot { width: 140px; height: 140px; }
+            .hero-name { font-size: 28px; }
+            .stat-value { font-size: 40px; }
         }
     </style>
 </head>
@@ -341,12 +314,15 @@ while($row = $history_result->fetch_assoc()) {
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
                 <a href="reports.php">Trainings</a>
-                <a href="employee_reports.php" class="active">Employees</a>
+                <a href="employee_reports.php">Employees</a>
                 <a href="upload.php">Upload Data</a>
+                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="users.php">Users</a>
+                <?php endif; ?>
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle"><?php echo $initials; ?></div></div>
-                <a href="login.html" class="btn-signout">Sign Out</a>
+                <a href="logout.php" class="btn-signout">Sign Out</a>
             </div>
         </nav>
 
@@ -354,19 +330,13 @@ while($row = $history_result->fetch_assoc()) {
             
             <div class="hero-banner">
                 <a href="employee_reports.php" class="back-btn">
-                    <i data-lucide="arrow-left" style="width:14px;"></i> Back to List
+                    <i data-lucide="arrow-left" style="width:14px;"></i> Back
                 </a>
                 
-                <!-- Mascot/Avatar Section -->
                 <div class="hero-mascot">
-                    <!-- Option 1: Use your mascot image (uncomment and add your image) -->
-                    <!-- <img src="mascot.png" alt="Mascot"> -->
-                    
-                    <!-- Option 2: Avatar fallback (currently active) -->
-                    <div class="mascot-avatar"><?php echo strtoupper(substr($employee['nama_karyawan'], 0, 1)); ?></div>
+                    <img src="icons/Pina - Greetings.png" alt="Mascot">
                 </div>
 
-                <!-- Center Content -->
                 <div class="hero-content">
                     <div class="hero-label">EMPLOYEE PROFILE</div>
                     <h1 class="hero-name"><?php echo htmlspecialchars($employee['nama_karyawan']); ?></h1>
@@ -385,22 +355,22 @@ while($row = $history_result->fetch_assoc()) {
                         </div>
                         <div class="hero-detail-row">
                             <div class="hero-detail-item">
-                                <strong>Func:</strong> 
+                                <strong>Func N-1:</strong> 
                                 <span><?php echo htmlspecialchars($employee['func'] ?? '-'); ?></span>
+                            </div>
+                            <span class="detail-separator">|</span>
+                            <div class="hero-detail-item">
+                                <strong>Func N-2:</strong> 
+                                <span><?php echo htmlspecialchars($employee['func2'] ?? '-'); ?></span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Right Stats -->
                 <div class="hero-stats">
                     <div class="stat-box">
                         <div class="stat-value"><?php echo $total_sessions; ?></div>
                         <div class="stat-label">Trainings Joined</div>
-                    </div>
-                    <div class="stat-box highlight">
-                        <div class="stat-value"><?php echo $avg_score_display; ?>%</div>
-                        <div class="stat-label">Avg Post Score</div>
                     </div>
                 </div>
             </div>
@@ -427,16 +397,11 @@ while($row = $history_result->fetch_assoc()) {
                         <th>Method</th>
                         <th>Pre Score</th>
                         <th>Post Score</th>
-                        <th>Result</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (count($history_data) > 0): ?>
                         <?php foreach($history_data as $row): 
-                            $improvement = $row['post'] - $row['pre'];
-                            $impSign = ($improvement > 0) ? '+' : '';
-                            
-                            $resClass = ($improvement > 0) ? 'badge-improvement' : (($improvement < 0) ? 'badge-decline' : 'badge-neutral');
                             $typeClass = (stripos($row['jenis'], 'Technical') !== false) ? 'type-tech' : 'type-soft';
                             $methodClass = (stripos($row['method'], 'Online') !== false) ? 'method-online' : 'method-class';
                         ?>
@@ -447,15 +412,10 @@ while($row = $history_result->fetch_assoc()) {
                             <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
                             <td><?php echo $row['pre']; ?></td>
                             <td><strong style="color:#197B40"><?php echo $row['post']; ?></strong></td>
-                            <td>
-                                <span class="badge <?php echo $resClass; ?>">
-                                    <?php echo $impSign . $improvement; ?> pts
-                                </span>
-                            </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr><td colspan="7" style="text-align:center; padding: 25px; color:#999;">No training history found for this employee.</td></tr>
+                        <tr><td colspan="6" style="text-align:center; padding: 25px; color:#999;">No training history found for this employee.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -475,22 +435,22 @@ while($row = $history_result->fetch_assoc()) {
             }
         };
 
-        // Training Mix Doughnut Chart
+        // Training Mix Pie Chart
         const mixCtx = document.getElementById('mixChart').getContext('2d');
         new Chart(mixCtx, {
-            type: 'doughnut',
+            type: 'pie',    
             data: {
                 labels: ['Technical', 'Soft Skills'],
                 datasets: [{
                     data: [<?php echo $stats['count_tech']; ?>, <?php echo $stats['count_soft']; ?>],
-                    backgroundColor: ['#e3f2fd', '#fff3e0'],
+                    backgroundColor: ['#1e88e5', '#f57c00'],
                     borderColor: ['#1e88e5', '#f57c00'],
                     borderWidth: 1
                 }]
             },
             options: {
                 ...commonOptions,
-                cutout: '70%'
+                cutout: '0%',
             }
         });
     </script>
