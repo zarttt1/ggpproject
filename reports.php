@@ -10,11 +10,29 @@ if (!isset($_SESSION['user_id'])) {
 $username = $_SESSION['username'] ?? 'User';
 $initials = strtoupper(substr($username, 0, 2));
 
+// --- HELPER FUNCTION: Smart Date Formatting ---
+function formatDateRange($start_date, $end_date) {
+    $start = strtotime($start_date);
+    $end = (!empty($end_date) && $end_date != '0000-00-00') ? strtotime($end_date) : $start;
+
+    if (date('Y-m-d', $start) === date('Y-m-d', $end)) {
+        return date('M d, Y', $start);
+    }
+
+    if (date('Y', $start) === date('Y', $end)) {
+        if (date('M', $start) === date('M', $end)) {
+            return date('M d', $start) . ' - ' . date('d, Y', $end);
+        }
+        return date('M d', $start) . ' - ' . date('M d, Y', $end);
+    }
+
+    return date('M d, Y', $start) . ' - ' . date('M d, Y', $end);
+}
+
 // --- GET PARAMETERS ---
 $search = $_GET['search'] ?? '';
 $filter_type = $_GET['type'] ?? 'All Types';
 $filter_method = $_GET['method'] ?? 'All Methods';
-// 1. New Code Filter
 $filter_code = $_GET['code'] ?? 'All Codes'; 
 $start_date = $_GET['start'] ?? '';
 $end_date = $_GET['end'] ?? '';
@@ -35,10 +53,11 @@ if (isset($_GET['ajax_search'])) {
 
     $count_sql = "SELECT COUNT(DISTINCT ts.id_session) as total FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql_ajax";
     $total_records = $conn->query($count_sql)->fetch_assoc()['total'];
+    $total_pages = ceil($total_records / $limit);
     
     // FETCH DATA
     $data_sql = "
-        SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS type, ts.method, ts.date_start AS date, 
+        SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS type, ts.method, ts.date_start, ts.date_end, 
                COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
         FROM training_session ts
         JOIN training t ON ts.id_training = t.id_training
@@ -56,6 +75,8 @@ if (isset($_GET['ajax_search'])) {
             $typeClass = (stripos($row['type'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['type'], 'Soft') !== false) ? 'type-soft' : 'type-default');
             $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
             $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
+            
+            $date_display = formatDateRange($row['date_start'], $row['date_end']);
             ?>
             <tr>
                 <td>
@@ -67,7 +88,7 @@ if (isset($_GET['ajax_search'])) {
                         </div>
                     </div>
                 </td>
-                <td><?php echo date('M d, Y', strtotime($row['date'])); ?></td>
+                <td style="white-space: nowrap; font-weight: 600; color: #555;"><?php echo $date_display; ?></td>
                 <td><span class="badge <?php echo $typeClass; ?>"><?php echo htmlspecialchars($row['type']); ?></span></td>
                 <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
                 <td><?php echo $row['participants']; ?></td>
@@ -82,29 +103,44 @@ if (isset($_GET['ajax_search'])) {
             <?php
         }
     } else {
-        echo '<tr><td colspan="7" style="text-align:center; color:#888;">No records found.</td></tr>';
+        echo '<tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>';
     }
-    $html = ob_get_clean();
-    echo json_encode(['html' => $html, 'total' => $total_records]);
+    $table_html = ob_get_clean();
+
+    // Prepare Pagination HTML
+    ob_start();
+    ?>
+    <div>Showing <?php echo ($total_records > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records</div>
+    <div class="pagination-controls">
+        <?php if($page > 1): $prev = $page - 1; echo "<a href='#' onclick='changePage($prev); return false;' class='btn-next' style='transform: rotate(180deg); display:inline-block;'><i data-lucide='chevron-right' style='width:16px;'></i></a>"; endif; ?>
+        
+        <?php for($i=1; $i<=$total_pages; $i++): ?>
+            <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
+                <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
+            <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
+                <span class="dots">...</span>
+            <?php endif; ?>
+        <?php endfor; ?>
+
+        <?php if($page < $total_pages): $next = $page + 1; echo "<a href='#' onclick='changePage($next); return false;' class='btn-next'>Next <i data-lucide='chevron-right' style='width:16px;'></i></a>"; endif; ?>
+    </div>
+    <?php
+    $pagination_html = ob_get_clean();
+
+    echo json_encode(['table' => $table_html, 'pagination' => $pagination_html]);
     exit;
 }
 
 // --- STANDARD LOAD QUERY ---
 $where_clauses = ["1=1"];
 
-// Search Filter
 if (!empty($search)) {
     $where_clauses[] = "(t.nama_training LIKE '%" . $conn->real_escape_string($search) . "%' OR ts.code_sub LIKE '%" . $conn->real_escape_string($search) . "%')";
 }
-
-// Dropdown Filters
 if ($filter_type !== 'All Types') $where_clauses[] = "t.jenis = '" . $conn->real_escape_string($filter_type) . "'";
 if ($filter_method !== 'All Methods') $where_clauses[] = "ts.method = '" . $conn->real_escape_string($filter_method) . "'";
-
-// 2. Add Code Filter Logic
 if ($filter_code !== 'All Codes') $where_clauses[] = "ts.code_sub = '" . $conn->real_escape_string($filter_code) . "'";
 
-// Date Filter
 if (!empty($start_date) && !empty($end_date)) {
     $where_clauses[] = "ts.date_start >= '$start_date' AND ts.date_start <= '$end_date'";
 } elseif (!empty($start_date)) {
@@ -121,7 +157,7 @@ $total_records = $total_result->fetch_assoc()['total'] ?? 0;
 $total_pages = ceil($total_records / $limit);
 
 $data_sql = "
-    SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS type, ts.method, ts.date_start AS date, 
+    SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS type, ts.method, ts.date_start, ts.date_end, 
            COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
     FROM training_session ts
     JOIN training t ON ts.id_training = t.id_training
@@ -133,10 +169,8 @@ $data_sql = "
 ";
 $result = $conn->query($data_sql);
 
-// --- FETCH OPTION LISTS FOR DROPDOWNS ---
 $types_opt = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis");
 $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method");
-// 3. Fetch Distinct Codes
 $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub");
 ?>
 <!DOCTYPE html>
@@ -148,11 +182,30 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
-        /* (EXISTING CSS - Unchanged) */
+        /* --- GLOBAL STYLES --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
-        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
-        .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; display: flex; flex-direction: column; }
+        
+        body { 
+            background-color: #117054; 
+            padding: 0; 
+            margin: 0; 
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .main-wrapper { 
+            background-color: #f3f4f7; 
+            padding: 20px 40px; 
+            min-height: 100vh;
+            width: 100%; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+            transition: transform 0.3s, border-radius 0.3s;
+        }
+
         .drawer-open .main-wrapper { transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto; box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden; }
+        
         .navbar { background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
@@ -164,39 +217,89 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
         .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
         .btn-signout:hover { background-color: #b71c1c; }
-        .report-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 50px; flex-grow: 1; display: flex; flex-direction: column; }
-        .report-header { background-color: #197B40; padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; color: white; }
-        .header-actions { display: flex; align-items: center; gap: 12px; }
-        .search-bar { background: white; border-radius: 50px; padding: 10px 20px; display: flex; align-items: center; width: 250px; }
-        .search-bar input { border: none; outline: none; margin-left: 10px; width: 100%; font-size: 13px; color: #333; }
-        .btn-action { background: white; color: #197B40; border: none; padding: 10px 20px; border-radius: 50px; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.3s; }
-        .btn-action:hover { background: #f0f0f0; }
-        .table-container { padding: 20px 40px 0 40px; flex-grow: 1; overflow-y: auto; }
+        
+        /* CARD - Matched to Employee List */
+        .table-card { 
+            background: white; 
+            border-radius: 12px; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.03); 
+            overflow: hidden; 
+            margin-bottom: 40px; 
+            margin-top: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            /* Removed fixed height to let table grow */
+        }
+
+        /* HEADER - Matched to Employee List */
+        .table-header-strip { background-color: #197b40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        .table-title { font-weight: 600; font-size: 16px; margin: 0; }
+        .table-actions { display: flex; gap: 12px; align-items: center; }
+        
+        /* SEARCH BAR */
+        .search-box { background-color: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; }
+        .search-box img { width: 16px; height: 16px; margin-right: 8px; }
+        .search-box input { border: none; background: transparent; outline: none; height: 100%; flex: 1; padding-left: 10px; font-size: 13px; color: #333; }
+        
+        /* BUTTONS */
+        .btn-action-small { height: 35px; padding: 0 15px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; text-decoration: none; transition: 0.2s; }
+        .btn-action-small:hover { background-color: #f0fdf4; }
+        
+        .table-responsive { flex-grow: 1; overflow-y: auto; }
+
+        /* TABLE - Matched Cell Padding */
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; font-size: 13px; color: #888; padding: 15px 0; border-bottom: 1px solid #eee; }
-        td { padding: 20px 0; font-size: 14px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        th { text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; border-bottom: 1px solid #eee; position: sticky; top: 0; background: white; z-index: 10; }
+        td { padding: 15px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        
+        td:not(:first-child) { white-space: nowrap; }
+
         .training-cell { display: flex; align-items: center; gap: 12px; }
         .icon-box { background: #e8f5e9; color: #197B40; padding: 8px; border-radius: 8px; display: flex; align-items: center; }
-        .training-name-text { font-weight: 700; }
-        .badge { padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; }
+        .training-name-text { font-weight: 700; line-height: 1.2; }
+        
+        .badge { padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; display: inline-block; }
         .type-tech { background: #e3f2fd; color: #1e88e5; }
         .type-soft { background: #fff3e0; color: #f57c00; }
         .type-default { background: #f5f5f5; color: #666; }
         .method-inclass { background: #f3e5f5; color: #8e24aa; }
         .method-online { background: #e0f2f1; color: #00695c; }
         .score { color: #197B40; font-weight: bold; }
-        .btn-view { position: relative; background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%); color: white; border: none; padding: 10px 18px; border-radius: 25px; font-size: 12px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; overflow: visible; transition: transform 0.2s; }
+        
+        /* ACTION BUTTON */
+        .btn-view { 
+            position: relative; 
+            background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%); 
+            color: white; 
+            border: none; 
+            padding: 10px 14px; 
+            border-radius: 25px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 5px; 
+            overflow: visible; 
+            transition: transform 0.2s; 
+            white-space: nowrap; 
+        }
         .btn-view:active { transform: scale(0.98); }
         .btn-view span { position: relative; z-index: 2; }
         .btn-view svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
         .btn-view rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: url(#multiColorGradient); stroke-width: 2; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
         .btn-view:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
         @keyframes snakeMove { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
-        .table-footer { padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; color: #7a7a7a; font-size: 13px; border-top: 1px solid #f9f9f9; }
-        .pagination { display: flex; align-items: center; gap: 8px; }
+        
+        /* PAGINATION */
+        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; border-top: 1px solid #f9f9f9; }
+        .pagination-controls { display: flex; align-items: center; gap: 8px; }
         .page-num { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; text-decoration: none; color: #4a4a4a; font-weight: 500; }
         .page-num.active { background-color: #197B40; color: white; }
-        .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; }
+        .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
+
+        /* --- FILTER DRAWER STYLES --- */
         .filter-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
         .filter-drawer { position: fixed; top: 20px; bottom: 20px; right: -400px; width: 380px; background: white; z-index: 1001; box-shadow: -10px 0 30px rgba(0,0,0,0.15); transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1); display: flex; flex-direction: column; border-radius: 35px; overflow: hidden; }
         .drawer-open .filter-overlay { display: block; opacity: 1; pointer-events: auto; }
@@ -205,12 +308,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         .drawer-content { padding: 25px; overflow-y: auto; flex-grow: 1; }
         .filter-group { margin-bottom: 25px; }
         .filter-group label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 10px; }
-        .filter-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 12px; outline: none; }
-        .date-row { display: flex; gap: 10px; }
-        .date-input-wrapper { position: relative; flex: 1; }
-        .date-input-wrapper input[type="date"] { width: 100%; padding: 10px 40px 10px 20px; border: 1px solid #e0e0e0; border-radius: 50px; font-size: 13px; outline: none; color: #333; font-family: 'Poppins', sans-serif; background-color: #fff; cursor: pointer; transition: all 0.2s; position: relative; }
-        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 0; margin: 0; opacity: 0; cursor: pointer; }
-        .custom-date-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #197B40; width: 18px; height: 18px; pointer-events: none; z-index: 1; }
+        .filter-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 12px; outline: none; font-size: 13px; font-family: 'Poppins', sans-serif; }
         .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; }
         .btn-reset { background: #f3f4f7; color: #666; border: none; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; }
         .btn-apply { position: relative; background: #197B40; color: white; border: none; padding: 12px 24px; border-radius: 25px; flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; overflow: visible; }
@@ -237,7 +335,9 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                 <a href="dashboard.php">Dashboard</a>
                 <a href="reports.php" class="active">Trainings</a>
                 <a href="employee_reports.php">Employees</a>
-                <a href="upload.php">Upload Data</a>
+                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="upload.php">Upload Data</a>
+                <?php endif; ?>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="users.php">Users</a>
                 <?php endif; ?>
@@ -248,28 +348,28 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
             </div>
         </nav>
 
-        <div class="report-card">
-            <div class="report-header">
-                <h3>Training Sessions Report</h3>
-                <div class="header-actions">
-                    <div class="search-bar">
-                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
+        <div class="table-card">
+            <div class="table-header-strip">
+                <div class="table-title">Training Sessions Report</div>
+                <div class="table-actions">
+                    <div class="search-box">
+                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
                         <input type="text" id="liveSearchInput" placeholder="Search training..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
                     
-                    <button class="btn-action" onclick="toggleDrawer()">
-                        <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
+                    <button class="btn-action-small" onclick="toggleDrawer()">
+                        <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Filter">
                         Filters
                     </button>
 
-                    <button class="btn-action" onclick="window.location.href='export_report.php?<?php echo $_SERVER['QUERY_STRING']; ?>'">
-                        <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
-                        Export Report
-                    </button>
+                    <a href="export_report.php?<?php echo $_SERVER['QUERY_STRING']; ?>" class="btn-action-small">
+                        <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Export">
+                        Export
+                    </a>
                 </div>
             </div>
 
-            <div class="table-container">
+            <div class="table-responsive">
                 <table>
                     <thead>
                         <tr>
@@ -288,6 +388,8 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                                 $typeClass = (stripos($row['type'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['type'], 'Soft') !== false) ? 'type-soft' : 'type-default');
                                 $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
                                 $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
+                                
+                                $date_display = formatDateRange($row['date_start'], $row['date_end']);
                             ?>
                             <tr>
                                 <td>
@@ -299,7 +401,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                                         </div>
                                     </div>
                                 </td>
-                                <td><?php echo date('M d, Y', strtotime($row['date'])); ?></td>
+                                <td style="white-space: nowrap; font-weight: 600; color: #555;"><?php echo $date_display; ?></td>
                                 <td><span class="badge <?php echo $typeClass; ?>"><?php echo htmlspecialchars($row['type']); ?></span></td>
                                 <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
                                 <td><?php echo $row['participants']; ?></td>
@@ -319,25 +421,27 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                 </table>
             </div>
 
-            <div class="table-footer">
-                <div class="records-info" id="recordInfo">
-                    Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records
-                </div>
-                <div class="pagination" id="paginationControls">
-                    <?php if($page > 1): ?>
-                        <a href="?page=<?php echo $page-1; ?>&<?php echo http_build_query(array_diff_key($_GET, ['page'=>''])); ?>" class="btn-next" style="transform: rotate(180deg); display:inline-block;"><i data-lucide="chevron-right" style="width:16px;"></i></a>
+            <div class="pagination-container">
+                <div>Showing <?php echo ($total_records > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records</div>
+                <div class="pagination-controls">
+                    <?php if($page > 1): $prev = $page - 1; ?>
+                        <a href="#" onclick="changePage(<?php echo $prev; ?>); return false;" class="btn-next" style="transform: rotate(180deg); display:inline-block;">
+                            <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+                        </a>
                     <?php endif; ?>
-
+                    
                     <?php for($i=1; $i<=$total_pages; $i++): ?>
                         <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
-                            <a href="?page=<?php echo $i; ?>&<?php echo http_build_query(array_diff_key($_GET, ['page'=>''])); ?>" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
+                            <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
                         <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
                             <span class="dots">...</span>
                         <?php endif; ?>
                     <?php endfor; ?>
 
-                    <?php if($page < $total_pages): ?>
-                        <a href="?page=<?php echo $page+1; ?>&<?php echo http_build_query(array_diff_key($_GET, ['page'=>''])); ?>" class="btn-next">Next <i data-lucide="chevron-right" style="width:16px;"></i></a>
+                    <?php if($page < $total_pages): $next = $page + 1; ?>
+                        <a href="#" onclick="changePage(<?php echo $next; ?>); return false;" class="btn-next">
+                            Next <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+                        </a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -423,6 +527,38 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         const tableBody = document.getElementById('tableBody');
         const recordInfo = document.getElementById('recordInfo');
         
+        // Capture current filters
+        const currentType = "<?php echo htmlspecialchars($filter_type); ?>";
+        const currentMethod = "<?php echo htmlspecialchars($filter_method); ?>";
+        const currentCode = "<?php echo htmlspecialchars($filter_code); ?>";
+        const currentStart = "<?php echo htmlspecialchars($start_date); ?>";
+        const currentEnd = "<?php echo htmlspecialchars($end_date); ?>";
+
+        function changePage(page) {
+            const query = searchInput.value;
+            fetchData(query, page);
+        }
+
+        function fetchData(query, page = 1) {
+            // Include filters in AJAX URL
+            let url = `?ajax_search=${encodeURIComponent(query)}&page=${page}`;
+            if(currentType !== 'All Types') url += `&type=${encodeURIComponent(currentType)}`;
+            if(currentMethod !== 'All Methods') url += `&method=${encodeURIComponent(currentMethod)}`;
+            if(currentCode !== 'All Codes') url += `&code=${encodeURIComponent(currentCode)}`;
+            if(currentStart) url += `&start=${encodeURIComponent(currentStart)}`;
+            if(currentEnd) url += `&end=${encodeURIComponent(currentEnd)}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = data.table;
+                    // Update the pagination container with the new HTML
+                    document.querySelector('.pagination-container').innerHTML = data.pagination;
+                    lucide.createIcons();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
         function debounce(func, wait) {
             let timeout;
             return function(...args) {
@@ -433,16 +569,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         }
 
         const performSearch = debounce(function() {
-            const query = searchInput.value;
-            fetch(`?ajax_search=${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(data => {
-                    tableBody.innerHTML = data.html;
-                    recordInfo.textContent = `Found ${data.total} records`;
-                    lucide.createIcons();
-                })
-                .catch(error => console.error('Error:', error));
-                
+            fetchData(searchInput.value, 1);
         }, 300);
 
         searchInput.addEventListener('input', performSearch);
@@ -451,16 +578,14 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
             const search = document.getElementById('liveSearchInput').value;
             const type = document.getElementById('filterType').value;
             const method = document.getElementById('filterMethod').value;
-            // 5. Get Code Value
             const code = document.getElementById('filterCode').value;
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
 
-            // 6. DATE VALIDATION: Check if Start > End
             if (start && end) {
                 if (new Date(start) > new Date(end)) {
                     alert("Date Range Error: The End Date cannot be earlier than the Start Date.");
-                    return; // Stop the function, do not reload
+                    return; 
                 }
             }
 
@@ -468,7 +593,6 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
             if(search) params.set('search', search);
             if(type !== 'All Types') params.set('type', type);
             if(method !== 'All Methods') params.set('method', method);
-            // 7. Set Code Param
             if(code !== 'All Codes') params.set('code', code);
             if(start) params.set('start', start);
             if(end) params.set('end', end);

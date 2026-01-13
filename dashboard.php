@@ -8,7 +8,52 @@ if (!isset($_SESSION['user_id'])) {
 require 'db_connect.php';
 
 // ==========================================
-//  1. AJAX HANDLER (For Live Search)
+//  0. AJAX HANDLER FOR FILTER DROPDOWNS (Dynamic Options)
+// ==========================================
+if (isset($_GET['get_filter_options'])) {
+    $sel_bu = $_GET['bu'] ?? 'All';
+    $sel_fn1 = $_GET['func_n1'] ?? 'All';
+
+    $response = ['fn1' => [], 'fn2' => []];
+
+    // 1. Get valid Func N-1 based on BU
+    // We join 'score' to ensure we only show functions that actually have data associated with that BU
+    $q1 = "SELECT DISTINCT f.func_n1 FROM func f 
+           JOIN score s ON f.id_func = s.id_func 
+           JOIN bu b ON s.id_bu = b.id_bu 
+           WHERE f.func_n1 IS NOT NULL AND f.func_n1 != ''";
+    
+    if ($sel_bu !== 'All') {
+        $q1 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
+    }
+    $q1 .= " ORDER BY f.func_n1";
+    
+    $res1 = $conn->query($q1);
+    while($r = $res1->fetch_assoc()) { $response['fn1'][] = $r['func_n1']; }
+
+    // 2. Get valid Func N-2 based on BU AND Func N-1
+    $q2 = "SELECT DISTINCT f.func_n2 FROM func f 
+           JOIN score s ON f.id_func = s.id_func 
+           JOIN bu b ON s.id_bu = b.id_bu 
+           WHERE f.func_n2 IS NOT NULL AND f.func_n2 != ''";
+    
+    if ($sel_bu !== 'All') {
+        $q2 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
+    }
+    if ($sel_fn1 !== 'All') {
+        $q2 .= " AND f.func_n1 = '" . $conn->real_escape_string($sel_fn1) . "'";
+    }
+    $q2 .= " ORDER BY f.func_n2";
+
+    $res2 = $conn->query($q2);
+    while($r = $res2->fetch_assoc()) { $response['fn2'][] = $r['func_n2']; }
+
+    echo json_encode($response);
+    exit;
+}
+
+// ==========================================
+//  1. AJAX HANDLER (For Live Search - Training List)
 // ==========================================
 if (isset($_GET['ajax_search'])) {
     $search_term = $_GET['ajax_search'];
@@ -118,6 +163,11 @@ $res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . 
 $row_online = $res_online->fetch_assoc();
 $hours_online_raw = $row_online['total'] ?? 0;
 
+// 3.4 Total Participants (NEW)
+$res_part = $conn->query("SELECT COUNT(s.id_score) as total " . $join_sql);
+$row_part = $res_part->fetch_assoc();
+$total_participants_raw = $row_part['total'] ?? 0;
+
 // --- 4. FETCH TRAINING LIST (Initial Load) ---
 // Exclude specific training filter for the list so user sees all options
 $where_clauses_list = array_diff($where_clauses, ["t.nama_training = '$f_training_name'"]);
@@ -136,10 +186,38 @@ $sql_list = "
 ";
 $list_trainings = $conn->query($sql_list);
 
-// --- 5. FETCH FILTER DROPDOWN OPTIONS ---
+// --- 5. FETCH INITIAL FILTER DROPDOWN OPTIONS ---
+// 5.1 Business Units (Always ALL)
 $opt_bu = $conn->query("SELECT DISTINCT nama_bu FROM bu WHERE nama_bu IS NOT NULL ORDER BY nama_bu");
-$opt_func1 = $conn->query("SELECT DISTINCT func_n1 FROM func WHERE func_n1 IS NOT NULL ORDER BY func_n1");
-$opt_func2 = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT NULL ORDER BY func_n2");
+
+// 5.2 Initial Func N-1 (Filtered if BU is already selected in GET)
+$fn1_query = "SELECT DISTINCT f.func_n1 FROM func f";
+if ($f_bu !== 'All') {
+    $fn1_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($f_bu) . "' AND f.func_n1 IS NOT NULL";
+} else {
+    $fn1_query .= " WHERE f.func_n1 IS NOT NULL";
+}
+$fn1_query .= " ORDER BY f.func_n1";
+$opt_func1 = $conn->query($fn1_query);
+
+// 5.3 Initial Func N-2 (Filtered if BU or N-1 is selected)
+$fn2_query = "SELECT DISTINCT f.func_n2 FROM func f";
+// We need joins if filtering
+if ($f_bu !== 'All') {
+     $fn2_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($f_bu) . "'";
+     if ($f_func1 !== 'All') {
+         $fn2_query .= " AND f.func_n1 = '" . $conn->real_escape_string($f_func1) . "'";
+     }
+     $fn2_query .= " AND f.func_n2 IS NOT NULL";
+} elseif ($f_func1 !== 'All') {
+    // If only Func1 selected (unlikely via UI but possible via URL)
+    $fn2_query .= " WHERE f.func_n1 = '" . $conn->real_escape_string($f_func1) . "' AND f.func_n2 IS NOT NULL";
+} else {
+    $fn2_query .= " WHERE f.func_n2 IS NOT NULL";
+}
+$fn2_query .= " ORDER BY f.func_n2";
+$opt_func2 = $conn->query($fn2_query);
+
 $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL ORDER BY jenis");
 ?>
 
@@ -385,7 +463,9 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <a href="dashboard.php" class="active">Dashboard</a>
                 <a href="reports.php">Trainings</a>
                 <a href="employee_reports.php">Employees</a>
-                <a href="upload.php">Upload Data</a>
+                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="upload.php">Upload Data</a>
+                <?php endif; ?>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="users.php">Users</a>
                 <?php endif; ?>
@@ -475,6 +555,15 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                         <p><span id="counter-online" data-target="<?php echo $hours_online_raw; ?>">0</span>h</p>
                     </div>
                 </div>
+                <div class="breakdown-item">
+                    <div class="icon-box">
+                        <i data-lucide="users" style="color: white; width: 24px; height: 24px;"></i>
+                    </div>
+                    <div class="b-text">
+                        <h4>Participants</h4>
+                        <p><span id="counter-participants" data-target="<?php echo $total_participants_raw; ?>">0</span></p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -534,7 +623,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             </div>
             <div class="filter-group">
                 <label>Business Unit</label>
-                <select id="select-bu">
+                <select id="select-bu" onchange="updateFilterDropdowns('bu')">
                     <option value="All">All Units</option>
                     <?php while($r = $opt_bu->fetch_assoc()): ?>
                         <option value="<?php echo $r['nama_bu']; ?>" <?php echo ($f_bu == $r['nama_bu'])?'selected':''; ?>><?php echo $r['nama_bu']; ?></option>
@@ -543,7 +632,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             </div>
             <div class="filter-group">
                 <label>Function N-1</label>
-                <select id="select-func-n1">
+                <select id="select-func-n1" onchange="updateFilterDropdowns('fn1')">
                     <option value="All">All Functions</option>
                     <?php while($r = $opt_func1->fetch_assoc()): ?>
                         <option value="<?php echo $r['func_n1']; ?>" <?php echo ($f_func1 == $r['func_n1'])?'selected':''; ?>><?php echo $r['func_n1']; ?></option>
@@ -607,8 +696,9 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         // Init Counters
         const counters = [
             { id: "counter-total", key: "prev_total" },
-            { id: "counter-offline", key: "prev_offline" }, // CHANGED from inclass
-            { id: "counter-online", key: "prev_online" }    // Kept as online
+            { id: "counter-offline", key: "prev_offline" },
+            { id: "counter-online", key: "prev_online" },
+            { id: "counter-participants", key: "prev_participants" } 
         ];
 
         counters.forEach(item => {
@@ -671,8 +761,50 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         searchInput.addEventListener('input', performSearch);
     }
 
-    // --- 3. FILTER LOGIC ---
+    // --- 3. FILTER LOGIC & DYNAMIC DROPDOWNS ---
     function toggleDrawer() { document.getElementById('body').classList.toggle('drawer-open'); }
+
+    // --- NEW: Dynamic Dropdown Logic ---
+    function updateFilterDropdowns(trigger) {
+        const bu = document.getElementById('select-bu').value;
+        const fn1 = document.getElementById('select-func-n1').value;
+
+        // Fetch new options based on current selections
+        fetch(`?get_filter_options=1&bu=${encodeURIComponent(bu)}&func_n1=${encodeURIComponent(fn1)}`)
+            .then(res => res.json())
+            .then(data => {
+                // Update Fn1 if BU changed
+                if (trigger === 'bu') {
+                    const fn1Select = document.getElementById('select-func-n1');
+                    const currentVal = fn1Select.value;
+                    // Reset
+                    fn1Select.innerHTML = '<option value="All">All Functions</option>';
+                    
+                    data.fn1.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt;
+                        if (opt === currentVal) option.selected = true;
+                        fn1Select.appendChild(option);
+                    });
+                }
+
+                // Always update Fn2 based on BU & Fn1
+                const fn2Select = document.getElementById('select-func-n2');
+                const currentFn2Val = fn2Select.value;
+                // Reset
+                fn2Select.innerHTML = '<option value="All">All Functions</option>';
+                
+                data.fn2.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    if (opt === currentFn2Val) option.selected = true;
+                    fn2Select.appendChild(option);
+                });
+            })
+            .catch(err => console.error('Error fetching filter options:', err));
+    }
 
     function selectTraining(element, trainingName) {
         const url = new URL(window.location.href);

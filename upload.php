@@ -131,10 +131,13 @@ unset($_SESSION['update_logs']);
                 <a href="dashboard.php">Dashboard</a>
                 <a href="reports.php">Trainings</a>
                 <a href="employee_reports.php">Employees</a>
-                <a href="upload.php" class="active">Upload Data</a>
+                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="upload.php" class="active">Upload Data</a>
+                <?php endif; ?>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="users.php">Users</a>
                 <?php endif; ?>
+            </div>
             </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle"><?php echo $initials; ?></div></div>

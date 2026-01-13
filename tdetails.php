@@ -160,13 +160,15 @@ $sat_subject = $stats['avg_subject'] ? number_format($stats['avg_subject'], 1) :
 $sat_instructor = $stats['avg_instructor'] ? number_format($stats['avg_instructor'], 1) : '-';
 $sat_infras = $stats['avg_infras'] ? number_format($stats['avg_infras'], 1) : '-';
 
-// --- 3. FETCH TOP 3 IMPROVERS ---
+// --- 3. FETCH TOP 3 IMPROVERS (UPDATED LOGIC) ---
+// ORDER BY improvement DESC (Highest Gain)
+// THEN BY s.pre ASC (Lowest Starting Score gets priority)
 $top_sql = "
     SELECT k.nama_karyawan, (s.post - s.pre) as improvement, s.post, s.pre
     FROM score s 
     JOIN karyawan k ON s.id_karyawan = k.id_karyawan
     WHERE s.id_session = $id_session
-    ORDER BY improvement DESC
+    ORDER BY improvement DESC, s.pre ASC
     LIMIT 3
 ";
 $top_improvers = $conn->query($top_sql);
@@ -300,8 +302,7 @@ $preHistData = [
         .medal-icon img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1)); }
         .imp-info h4 { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 2px; }
         .imp-info p { font-size: 12px; color: #777; }
-        .imp-score { margin-left: auto; font-size: 18px; font-weight: 800; color: #197B40; }
-        .imp-score span { font-size: 11px; font-weight: 500; color: #888; margin-left: 2px; }
+        .imp-score { margin-left: auto; font-size: 18px; font-weight: 800; color: #197B40; margin-right:10px}
 
         /* --- TABLE --- */
         .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; }
@@ -333,7 +334,8 @@ $preHistData = [
             <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="reports.php" class="active">Reports</a>
+                <a href="reports.php">Trainings</a>
+                <a href="employee_reports.php">Employees</a>
                 <a href="upload.php">Upload Data</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="users.php">Users</a>
@@ -452,7 +454,7 @@ $preHistData = [
                     <h4><?php echo htmlspecialchars($top['nama_karyawan']); ?></h4>
                     <p>Pre: <?php echo $top['pre']; ?> -> Post: <?php echo $top['post']; ?></p>
                 </div>
-                <div class="imp-score">+<?php echo $top['improvement']; ?><span>pts</span></div>
+                <div class="imp-score">+<?php echo $top['improvement']; ?></div>
             </div>
             <?php $i++; endwhile; ?>
             

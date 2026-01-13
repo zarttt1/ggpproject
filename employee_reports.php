@@ -11,6 +11,46 @@ if (!isset($_SESSION['user_id'])) {
 $username = $_SESSION['username'] ?? 'User';
 $initials = strtoupper(substr($username, 0, 2));
 
+// ==========================================
+//  0. AJAX HANDLER FOR FILTER DROPDOWNS (Dynamic Options)
+// ==========================================
+if (isset($_GET['get_filter_options'])) {
+    $sel_bu = $_GET['bu'] ?? 'All BUs';
+    $sel_fn1 = $_GET['fn1'] ?? 'All Func N-1';
+
+    $response = ['fn1' => [], 'fn2' => []];
+
+    // 1. Get valid Func N-1 based on BU
+    $q1 = "SELECT DISTINCT f.func_n1 FROM func f 
+           JOIN score s ON f.id_func = s.id_func 
+           JOIN bu b ON s.id_bu = b.id_bu 
+           WHERE f.func_n1 IS NOT NULL AND f.func_n1 != ''";
+    if ($sel_bu !== 'All BUs') {
+        $q1 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
+    }
+    $q1 .= " ORDER BY f.func_n1";
+    $res1 = $conn->query($q1);
+    while($r = $res1->fetch_assoc()) { $response['fn1'][] = $r['func_n1']; }
+
+    // 2. Get valid Func N-2 based on BU AND Func N-1
+    $q2 = "SELECT DISTINCT f.func_n2 FROM func f 
+           JOIN score s ON f.id_func = s.id_func 
+           JOIN bu b ON s.id_bu = b.id_bu 
+           WHERE f.func_n2 IS NOT NULL AND f.func_n2 != ''";
+    if ($sel_bu !== 'All BUs') {
+        $q2 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
+    }
+    if ($sel_fn1 !== 'All Func N-1') {
+        $q2 .= " AND f.func_n1 = '" . $conn->real_escape_string($sel_fn1) . "'";
+    }
+    $q2 .= " ORDER BY f.func_n2";
+    $res2 = $conn->query($q2);
+    while($r = $res2->fetch_assoc()) { $response['fn2'][] = $r['func_n2']; }
+
+    echo json_encode($response);
+    exit;
+}
+
 // --- GET PARAMETERS ---
 $search = $_GET['search'] ?? '';
 $filter_bu = $_GET['bu'] ?? 'All BUs';
@@ -44,13 +84,14 @@ function getAbbreviation($name) {
 $where_clauses = ["1=1"];
 
 // 1. Search Logic
-if (!empty($search)) {
-    $safe_search = $conn->real_escape_string($search);
+$search_term = $_GET['ajax_search'] ?? $search; 
+
+if (!empty($search_term)) {
+    $safe_search = $conn->real_escape_string($search_term);
     $where_clauses[] = "(k.nama_karyawan LIKE '%$safe_search%' OR k.index_karyawan LIKE '%$safe_search%')";
 }
 
 // 2. Define Subqueries for Filtering
-// (We repeat these subqueries in the WHERE clause to filter by the *latest* status)
 $sub_bu = "(SELECT b.nama_bu FROM score s JOIN bu b ON s.id_bu = b.id_bu WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1)";
 $sub_fn1 = "(SELECT f.func_n1 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1)";
 $sub_fn2 = "(SELECT f.func_n2 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1)";
@@ -73,8 +114,6 @@ $where_sql = implode(' AND ', $where_clauses);
 //  AJAX HANDLER (For Live Search)
 // ==========================================
 if (isset($_GET['ajax_search'])) {
-    // Note: The $where_sql above already incorporates $_GET['search'] and all filters
-    
     $count_sql = "SELECT COUNT(*) as total FROM karyawan k WHERE $where_sql";
     $total_rows = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_rows / $limit);
@@ -134,9 +173,25 @@ if (isset($_GET['ajax_search'])) {
     ?>
     <div>Showing <?php echo ($total_rows > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
     <div class="pagination-controls">
-        <?php if($page > 1): $prev = $page - 1; echo "<a href='#' onclick='changePage($prev); return false;' class='page-btn'>&lt;</a>"; endif; ?>
-        <a href="#" class="page-btn active"><?php echo $page; ?></a>
-        <?php if($page < $total_pages): $next = $page + 1; echo "<a href='#' onclick='changePage($next); return false;' class='page-btn'>&gt;</a>"; endif; ?>
+        <?php if($page > 1): $prev = $page - 1; ?>
+            <a href="#" onclick="changePage(<?php echo $prev; ?>); return false;" class="btn-next" style="transform: rotate(180deg); display:inline-block;">
+                <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+            </a>
+        <?php endif; ?>
+        
+        <?php for($i=1; $i<=$total_pages; $i++): ?>
+            <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
+                <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
+            <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
+                <span class="dots">...</span>
+            <?php endif; ?>
+        <?php endfor; ?>
+
+        <?php if($page < $total_pages): $next = $page + 1; ?>
+            <a href="#" onclick="changePage(<?php echo $next; ?>); return false;" class="btn-next">
+                Next <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+            </a>
+        <?php endif; ?>
     </div>
     <?php
     $pagination_html = ob_get_clean();
@@ -168,10 +223,31 @@ $list_sql = "
 ";
 $employees = $conn->query($list_sql);
 
-// --- FETCH FILTER OPTIONS (Distinct values for dropdowns) ---
+// ==========================================
+//  FETCH INITIAL FILTER OPTIONS
+// ==========================================
+// 1. Business Units (Always ALL)
 $bu_opts = $conn->query("SELECT DISTINCT nama_bu FROM bu WHERE nama_bu IS NOT NULL ORDER BY nama_bu");
-$fn1_opts = $conn->query("SELECT DISTINCT func_n1 FROM func WHERE func_n1 IS NOT NULL ORDER BY func_n1");
-$fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT NULL ORDER BY func_n2");
+
+// 2. Initial Function N-1 (Filtered by selected BU if any)
+$fn1_query = "SELECT DISTINCT f.func_n1 FROM func f";
+if ($filter_bu !== 'All BUs') {
+    $fn1_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($filter_bu) . "' AND f.func_n1 IS NOT NULL";
+} else {
+    $fn1_query .= " WHERE f.func_n1 IS NOT NULL";
+}
+$fn1_query .= " ORDER BY f.func_n1";
+$fn1_opts = $conn->query($fn1_query);
+
+// 3. Initial Function N-2 (Filtered by selected BU if any)
+$fn2_query = "SELECT DISTINCT f.func_n2 FROM func f";
+if ($filter_bu !== 'All BUs') {
+    $fn2_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($filter_bu) . "' AND f.func_n2 IS NOT NULL";
+} else {
+    $fn2_query .= " WHERE f.func_n2 IS NOT NULL";
+}
+$fn2_query .= " ORDER BY f.func_n2";
+$fn2_opts = $conn->query($fn2_query);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -182,19 +258,14 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
+        /* --- GLOBAL STYLES --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
-        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
-        .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; display: flex; flex-direction: column; transition: transform 0.3s, border-radius 0.3s; }
         
-        /* Drawer Open State */
+        body { background-color: #117054; padding: 0; margin: 0; min-height: 100vh; overflow-y: auto; }
+        .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; min-height: 100vh; width: 100%; position: relative; display: flex; flex-direction: column; transition: transform 0.3s, border-radius 0.3s; }
         .drawer-open .main-wrapper { transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto; box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden; }
 
-        /* NAVBAR */
-        .navbar {
-            background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
-            display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
-            margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; 
-        }
+        .navbar { background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
         .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
@@ -206,15 +277,13 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
         .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
         .btn-signout:hover { background-color: #b71c1c; }
 
-        /* --- TABLE --- */
-        .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; margin-top: 20px; flex-grow: 1; display: flex; flex-direction: column; }
+        .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; margin-top: 20px; display: flex; flex-direction: column; }
         .table-header-strip { background-color: #197b40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
         .table-title { font-weight: 600; font-size: 16px; }
         .table-actions { display: flex; gap: 12px; align-items: center; }
         .search-box { background-color: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; }
         .search-box i { color: #197B40; width: 16px; height: 16px; }
         .search-box input { border: none; background: transparent; outline: none; height: 100%; flex: 1; padding-left: 10px; font-size: 13px; color: #333; }
-        
         .btn-action-small { height: 35px; padding: 0 15px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; text-decoration: none; transition: 0.2s; }
         .btn-action-small:hover { background-color: #f0fdf4; }
 
@@ -229,25 +298,7 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
         .badge-med { background-color: #fff7ed; color: #c2410c; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         .badge-low { background-color: #f3f4f6; color: #6b7280; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         
-        /* SNAKE ANIMATION BUTTON STYLES */
-        .btn-view { 
-            position: relative; 
-            background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%); 
-            color: white; 
-            border: none; 
-            padding: 10px 14px; 
-            border-radius: 25px; 
-            font-size: 12px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            display: inline-flex; 
-            align-items: center; 
-            justify-content: center; 
-            gap: 5px; 
-            overflow: visible; 
-            transition: transform 0.2s; 
-            white-space: nowrap; 
-        }
+        .btn-view { position: relative; background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%); color: white; border: none; padding: 10px 14px; border-radius: 25px; font-size: 12px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; overflow: visible; transition: transform 0.2s; white-space: nowrap; }
         .btn-view:active { transform: scale(0.98); }
         .btn-view span { position: relative; z-index: 2; }
         .btn-view svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
@@ -256,8 +307,10 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
         @keyframes snakeMove { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
 
         .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; border-top: 1px solid #f9f9f9; }
-        .page-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
-        .page-btn.active { background-color: #197B40; color: white; font-weight: 600; }
+        .pagination-controls { display: flex; align-items: center; gap: 8px; }
+        .page-num { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
+        .page-num.active { background-color: #197B40; color: white; font-weight: 600; }
+        .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
 
         /* --- FILTER DRAWER STYLES --- */
         .filter-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
@@ -271,8 +324,6 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
         .filter-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 12px; outline: none; font-size: 13px; font-family: 'Poppins', sans-serif; }
         .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; }
         .btn-reset { background: #f3f4f7; color: #666; border: none; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; }
-        
-        /* Apply Button with Snake Animation */
         .btn-apply { position: relative; background: #197B40; color: white; border: none; padding: 12px 24px; border-radius: 25px; flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; overflow: visible; }
         .btn-apply svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
         .btn-apply rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #FF9A02; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
@@ -318,12 +369,12 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
                     </div>
                     
                     <button class="btn-action-small" onclick="toggleDrawer()">
-                        <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
+                        <img src="icons/filter.ico" style="width: 20px; height: 20px;">
                         Filter
                     </button>
 
                     <a href="export_employees.php" id="exportBtn" class="btn-action-small">
-                        <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
+                        <img src="icons/excel.ico" style="width: 20px; height: 20px;">
                         Export
                     </a>
                 </div>
@@ -382,9 +433,25 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
             <div class="pagination-container" id="paginationContainer">
                 <div>Showing <?php echo ($total_rows > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
                 <div class="pagination-controls">
-                    <?php if($page > 1): $prev = $page - 1; echo "<a href='#' onclick='changePage($prev); return false;' class='page-btn'>&lt;</a>"; endif; ?>
-                    <a href="#" class="page-btn active"><?php echo $page; ?></a>
-                    <?php if($page < $total_pages): $next = $page + 1; echo "<a href='#' onclick='changePage($next); return false;' class='page-btn'>&gt;</a>"; endif; ?>
+                    <?php if($page > 1): $prev = $page - 1; ?>
+                        <a href="#" onclick="changePage(<?php echo $prev; ?>); return false;" class="btn-next" style="transform: rotate(180deg); display:inline-block;">
+                            <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+                        </a>
+                    <?php endif; ?>
+                    
+                    <?php for($i=1; $i<=$total_pages; $i++): ?>
+                        <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
+                            <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
+                        <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
+                            <span class="dots">...</span>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+
+                    <?php if($page < $total_pages): $next = $page + 1; ?>
+                        <a href="#" onclick="changePage(<?php echo $next; ?>); return false;" class="btn-next">
+                            Next <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -399,7 +466,7 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
         <div class="drawer-content">
             <div class="filter-group">
                 <label>Business Unit (BU)</label>
-                <select id="filterBU">
+                <select id="filterBU" onchange="updateFilterDropdowns('bu')">
                     <option value="All BUs">All BUs</option>
                     <?php while($row = $bu_opts->fetch_assoc()): ?>
                         <option value="<?php echo htmlspecialchars($row['nama_bu']); ?>" <?php if($filter_bu == $row['nama_bu']) echo 'selected'; ?>>
@@ -411,7 +478,7 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
 
             <div class="filter-group">
                 <label>Function N-1</label>
-                <select id="filterFn1">
+                <select id="filterFn1" onchange="updateFilterDropdowns('fn1')">
                     <option value="All Func N-1">All Func N-1</option>
                     <?php while($row = $fn1_opts->fetch_assoc()): ?>
                         <option value="<?php echo htmlspecialchars($row['func_n1']); ?>" <?php if($filter_fn1 == $row['func_n1']) echo 'selected'; ?>>
@@ -449,6 +516,45 @@ $fn2_opts = $conn->query("SELECT DISTINCT func_n2 FROM func WHERE func_n2 IS NOT
 
         function toggleDrawer() {
             document.getElementById('body').classList.toggle('drawer-open');
+        }
+
+        // --- DYNAMIC DROPDOWNS (AJAX) ---
+        function updateFilterDropdowns(trigger) {
+            const bu = document.getElementById('filterBU').value;
+            const fn1 = document.getElementById('filterFn1').value;
+
+            // Fetch new options based on current selections
+            fetch(`?get_filter_options=1&bu=${encodeURIComponent(bu)}&fn1=${encodeURIComponent(fn1)}`)
+                .then(res => res.json())
+                .then(data => {
+                    // Update Fn1 if BU changed
+                    if (trigger === 'bu') {
+                        const fn1Select = document.getElementById('filterFn1');
+                        // Keep current selection if valid, else reset
+                        const currentVal = fn1Select.value;
+                        fn1Select.innerHTML = '<option value="All Func N-1">All Func N-1</option>';
+                        data.fn1.forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = opt;
+                            option.textContent = opt;
+                            if (opt === currentVal) option.selected = true;
+                            fn1Select.appendChild(option);
+                        });
+                    }
+
+                    // Always update Fn2 based on BU & Fn1
+                    const fn2Select = document.getElementById('filterFn2');
+                    const currentFn2Val = fn2Select.value;
+                    fn2Select.innerHTML = '<option value="All Func N-2">All Func N-2</option>';
+                    data.fn2.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt;
+                        if (opt === currentFn2Val) option.selected = true;
+                        fn2Select.appendChild(option);
+                    });
+                })
+                .catch(err => console.error('Error fetching filter options:', err));
         }
 
         function applyFilters() {
