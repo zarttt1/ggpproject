@@ -138,7 +138,6 @@ unset($_SESSION['update_logs']);
                     <a href="users.php">Users</a>
                 <?php endif; ?>
             </div>
-            </div>
             <div class="nav-right">
                 <div class="user-profile"><div class="avatar-circle"><?php echo $initials; ?></div></div>
                 <a href="logout.php" class="btn-signout">Sign Out</a>
