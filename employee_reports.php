@@ -372,11 +372,6 @@ $fn2_opts = $conn->query($fn2_query);
                         <img src="icons/filter.ico" style="width: 20px; height: 20px;">
                         Filter
                     </button>
-
-                    <a href="export_employees.php" id="exportBtn" class="btn-action-small">
-                        <img src="icons/excel.ico" style="width: 20px; height: 20px;">
-                        Export
-                    </a>
                 </div>
             </div>
             <div class="table-responsive">

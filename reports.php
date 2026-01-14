@@ -31,7 +31,7 @@ function formatDateRange($start_date, $end_date) {
 
 // --- GET PARAMETERS ---
 $search = $_GET['search'] ?? '';
-$filter_type = $_GET['type'] ?? 'All Types';
+$filter_category = $_GET['category'] ?? 'All Categories'; 
 $filter_method = $_GET['method'] ?? 'All Methods';
 $filter_code = $_GET['code'] ?? 'All Codes'; 
 $start_date = $_GET['start'] ?? '';
@@ -49,6 +49,18 @@ if (isset($_GET['ajax_search'])) {
         $safe_search = $conn->real_escape_string($search_term);
         $where_ajax[] = "(t.nama_training LIKE '%$safe_search%' OR ts.code_sub LIKE '%$safe_search%')";
     }
+    
+    // Apply filters in AJAX too
+    if (isset($_GET['category']) && $_GET['category'] !== 'All Categories') {
+        $where_ajax[] = "t.jenis = '" . $conn->real_escape_string($_GET['category']) . "'";
+    }
+    if (isset($_GET['method']) && $_GET['method'] !== 'All Methods') {
+        $where_ajax[] = "ts.method = '" . $conn->real_escape_string($_GET['method']) . "'";
+    }
+    if (isset($_GET['code']) && $_GET['code'] !== 'All Codes') {
+        $where_ajax[] = "ts.code_sub = '" . $conn->real_escape_string($_GET['code']) . "'";
+    }
+    
     $where_sql_ajax = implode(' AND ', $where_ajax);
 
     $count_sql = "SELECT COUNT(DISTINCT ts.id_session) as total FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql_ajax";
@@ -57,7 +69,7 @@ if (isset($_GET['ajax_search'])) {
     
     // FETCH DATA
     $data_sql = "
-        SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS type, ts.method, ts.date_start, ts.date_end, 
+        SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
                COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
         FROM training_session ts
         JOIN training t ON ts.id_training = t.id_training
@@ -72,7 +84,7 @@ if (isset($_GET['ajax_search'])) {
     ob_start();
     if ($result->num_rows > 0) {
         while($row = $result->fetch_assoc()) {
-            $typeClass = (stripos($row['type'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['type'], 'Soft') !== false) ? 'type-soft' : 'type-default');
+            $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
             $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
             $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
             
@@ -88,10 +100,12 @@ if (isset($_GET['ajax_search'])) {
                         </div>
                     </div>
                 </td>
-                <td style="white-space: nowrap; font-weight: 600; color: #555;"><?php echo $date_display; ?></td>
-                <td><span class="badge <?php echo $typeClass; ?>"><?php echo htmlspecialchars($row['type']); ?></span></td>
+                <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
+                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
+                <td><span class="badge type-info"><?php echo htmlspecialchars($row['training_type']); ?></span></td>
                 <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
-                <td><?php echo $row['participants']; ?></td>
+                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour']); ?></td>
+                <td style="text-align:center;"><?php echo $row['participants']; ?></td>
                 <td class="score"><?php echo $avgScore; ?></td>
                 <td>
                     <button class="btn-view" onclick="window.location.href='tdetails.php?id=<?php echo $row['id_session']; ?>'">
@@ -103,11 +117,11 @@ if (isset($_GET['ajax_search'])) {
             <?php
         }
     } else {
-        echo '<tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>';
+        echo '<tr><td colspan="9" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>';
     }
     $table_html = ob_get_clean();
 
-    // Prepare Pagination HTML
+    // Pagination HTML
     ob_start();
     ?>
     <div>Showing <?php echo ($total_records > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records</div>
@@ -137,7 +151,7 @@ $where_clauses = ["1=1"];
 if (!empty($search)) {
     $where_clauses[] = "(t.nama_training LIKE '%" . $conn->real_escape_string($search) . "%' OR ts.code_sub LIKE '%" . $conn->real_escape_string($search) . "%')";
 }
-if ($filter_type !== 'All Types') $where_clauses[] = "t.jenis = '" . $conn->real_escape_string($filter_type) . "'";
+if ($filter_category !== 'All Categories') $where_clauses[] = "t.jenis = '" . $conn->real_escape_string($filter_category) . "'";
 if ($filter_method !== 'All Methods') $where_clauses[] = "ts.method = '" . $conn->real_escape_string($filter_method) . "'";
 if ($filter_code !== 'All Codes') $where_clauses[] = "ts.code_sub = '" . $conn->real_escape_string($filter_code) . "'";
 
@@ -157,7 +171,7 @@ $total_records = $total_result->fetch_assoc()['total'] ?? 0;
 $total_pages = ceil($total_records / $limit);
 
 $data_sql = "
-    SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS type, ts.method, ts.date_start, ts.date_end, 
+    SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
            COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
     FROM training_session ts
     JOIN training t ON ts.id_training = t.id_training
@@ -169,7 +183,7 @@ $data_sql = "
 ";
 $result = $conn->query($data_sql);
 
-$types_opt = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis");
+$categories_opt = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis");
 $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method");
 $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub");
 ?>
@@ -179,7 +193,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GGF - Training Sessions Report</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
         /* --- GLOBAL STYLES --- */
@@ -218,7 +232,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
         .btn-signout:hover { background-color: #b71c1c; }
         
-        /* CARD - Matched to Employee List */
+        /* CARD */
         .table-card { 
             background: white; 
             border-radius: 12px; 
@@ -228,12 +242,11 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
             margin-top: 20px; 
             display: flex; 
             flex-direction: column; 
-            /* Removed fixed height to let table grow */
         }
 
-        /* HEADER - Matched to Employee List */
-        .table-header-strip { background-color: #197b40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
-        .table-title { font-weight: 600; font-size: 16px; margin: 0; }
+        /* HEADER */
+        .table-header-strip { background-color: #197B40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        .table-title { font-weight: 700; font-size: 16px; margin: 0; }
         .table-actions { display: flex; gap: 12px; align-items: center; }
         
         /* SEARCH BAR */
@@ -247,10 +260,23 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         
         .table-responsive { flex-grow: 1; overflow-y: auto; }
 
-        /* TABLE - Matched Cell Padding */
+        /* TABLE */
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; border-bottom: 1px solid #eee; position: sticky; top: 0; background: white; z-index: 10; }
-        td { padding: 15px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        
+        th { 
+            text-align: left; 
+            padding: 15px 25px; 
+            font-size: 12px; 
+            color: #555; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            background: white; 
+            border-bottom: 2px solid #eee;
+            position: sticky; top: 0; z-index: 10; 
+        }
+        
+        td { padding: 16px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         
         td:not(:first-child) { white-space: nowrap; }
 
@@ -258,12 +284,21 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         .icon-box { background: #e8f5e9; color: #197B40; padding: 8px; border-radius: 8px; display: flex; align-items: center; }
         .training-name-text { font-weight: 700; line-height: 1.2; }
         
-        .badge { padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; display: inline-block; }
-        .type-tech { background: #e3f2fd; color: #1e88e5; }
-        .type-soft { background: #fff3e0; color: #f57c00; }
-        .type-default { background: #f5f5f5; color: #666; }
-        .method-inclass { background: #f3e5f5; color: #8e24aa; }
-        .method-online { background: #e0f2f1; color: #00695c; }
+        /* BADGES */
+        .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
+        
+        /* Category Colors */
+        .type-tech { background: #E3F2FD; color: #1565C0; border: 1px solid rgba(21, 101, 192, 0.1); }
+        .type-soft { background: #FFF3E0; color: #EF6C00; border: 1px solid rgba(239, 108, 0, 0.1); }
+        .type-default { background: #F5F5F5; color: #616161; }
+        
+        /* New Type Column Color */
+        .type-info { background: #F3E5F5; color: #7B1FA2; border: 1px solid rgba(123, 31, 162, 0.1); }
+
+        /* Method Colors */
+        .method-online { background: #E0F2F1; color: #00695C; border: 1px solid rgba(0, 105, 92, 0.1); }
+        .method-inclass { background: #FCE4EC; color: #C2185B; border: 1px solid rgba(194, 24, 91, 0.1); }
+
         .score { color: #197B40; font-weight: bold; }
         
         /* ACTION BUTTON */
@@ -361,11 +396,6 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                         <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Filter">
                         Filters
                     </button>
-
-                    <a href="export_report.php?<?php echo $_SERVER['QUERY_STRING']; ?>" class="btn-action-small">
-                        <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Export">
-                        Export
-                    </a>
                 </div>
             </div>
 
@@ -375,9 +405,11 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                         <tr>
                             <th>Training Name</th>
                             <th>Date</th>
-                            <th>Type</th>
+                            <th>Category</th> 
+                            <th>Type</th>     
                             <th>Method</th>
-                            <th>Participants</th>
+                            <th style="text-align:center;">Credit Hour</th> 
+                            <th style="text-align:center;">Participants</th>
                             <th>Avg Score</th>
                             <th>Action</th>
                         </tr>
@@ -385,7 +417,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                     <tbody id="tableBody">
                         <?php if ($result->num_rows > 0): ?>
                             <?php while($row = $result->fetch_assoc()): 
-                                $typeClass = (stripos($row['type'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['type'], 'Soft') !== false) ? 'type-soft' : 'type-default');
+                                $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
                                 $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
                                 $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
                                 
@@ -401,10 +433,16 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                                         </div>
                                     </div>
                                 </td>
-                                <td style="white-space: nowrap; font-weight: 600; color: #555;"><?php echo $date_display; ?></td>
-                                <td><span class="badge <?php echo $typeClass; ?>"><?php echo htmlspecialchars($row['type']); ?></span></td>
+                                <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
+                                
+                                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
+                                
+                                <td><span class="badge type-info"><?php echo htmlspecialchars($row['training_type']); ?></span></td>
+                                
                                 <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
-                                <td><?php echo $row['participants']; ?></td>
+                                
+                                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour']); ?></td>
+                                <td style="text-align:center;"><?php echo $row['participants']; ?></td>
                                 <td class="score"><?php echo $avgScore; ?></td>
                                 <td>
                                     <button class="btn-view" onclick="window.location.href='tdetails.php?id=<?php echo $row['id_session']; ?>'">
@@ -415,7 +453,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                             </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <tr><td colspan="7" style="text-align:center; color:#888;">No records found.</td></tr>
+                            <tr><td colspan="9" style="text-align:center; color:#888;">No records found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -457,11 +495,11 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         </div>
         <div class="drawer-content">
             <div class="filter-group">
-                <label>Training Type</label>
-                <select id="filterType">
-                    <option value="All Types">All Types</option>
-                    <?php while($t = $types_opt->fetch_assoc()): ?>
-                        <option value="<?php echo htmlspecialchars($t['jenis']); ?>" <?php if($filter_type == $t['jenis']) echo 'selected'; ?>>
+                <label>Category</label>
+                <select id="filterCategory">
+                    <option value="All Categories">All Categories</option>
+                    <?php while($t = $categories_opt->fetch_assoc()): ?>
+                        <option value="<?php echo htmlspecialchars($t['jenis']); ?>" <?php if($filter_category == $t['jenis']) echo 'selected'; ?>>
                             <?php echo htmlspecialchars($t['jenis']); ?>
                         </option>
                     <?php endwhile; ?>
@@ -528,7 +566,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         const recordInfo = document.getElementById('recordInfo');
         
         // Capture current filters
-        const currentType = "<?php echo htmlspecialchars($filter_type); ?>";
+        const currentCategory = "<?php echo htmlspecialchars($filter_category); ?>";
         const currentMethod = "<?php echo htmlspecialchars($filter_method); ?>";
         const currentCode = "<?php echo htmlspecialchars($filter_code); ?>";
         const currentStart = "<?php echo htmlspecialchars($start_date); ?>";
@@ -542,7 +580,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         function fetchData(query, page = 1) {
             // Include filters in AJAX URL
             let url = `?ajax_search=${encodeURIComponent(query)}&page=${page}`;
-            if(currentType !== 'All Types') url += `&type=${encodeURIComponent(currentType)}`;
+            if(currentCategory !== 'All Categories') url += `&category=${encodeURIComponent(currentCategory)}`;
             if(currentMethod !== 'All Methods') url += `&method=${encodeURIComponent(currentMethod)}`;
             if(currentCode !== 'All Codes') url += `&code=${encodeURIComponent(currentCode)}`;
             if(currentStart) url += `&start=${encodeURIComponent(currentStart)}`;
@@ -552,7 +590,6 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                 .then(response => response.json())
                 .then(data => {
                     tableBody.innerHTML = data.table;
-                    // Update the pagination container with the new HTML
                     document.querySelector('.pagination-container').innerHTML = data.pagination;
                     lucide.createIcons();
                 })
@@ -576,7 +613,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
 
         function applyFilters() {
             const search = document.getElementById('liveSearchInput').value;
-            const type = document.getElementById('filterType').value;
+            const category = document.getElementById('filterCategory').value;
             const method = document.getElementById('filterMethod').value;
             const code = document.getElementById('filterCode').value;
             const start = document.getElementById('startDate').value;
@@ -591,7 +628,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
 
             const params = new URLSearchParams();
             if(search) params.set('search', search);
-            if(type !== 'All Types') params.set('type', type);
+            if(category !== 'All Categories') params.set('category', category);
             if(method !== 'All Methods') params.set('method', method);
             if(code !== 'All Codes') params.set('code', code);
             if(start) params.set('start', start);
