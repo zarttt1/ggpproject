@@ -471,7 +471,7 @@ $preHistData = [
                         <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                         <input type="text" id="searchInput" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
-                    <a href="export_session.php?id=<?php echo $id_session; ?>" id="exportBtn" class="btn-export">
+                    <a href="export_report.php?id=<?php echo $id_session; ?>" id="exportBtn" class="btn-export">
                         <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                     </a>
                 </div>
