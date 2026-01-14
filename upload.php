@@ -16,11 +16,15 @@ $initials = strtoupper(substr($username, 0, 2));
 $uploadMessage = $_SESSION['upload_message'] ?? '';
 $uploadLogs = $_SESSION['upload_logs'] ?? [];  // Errors
 $updateLogs = $_SESSION['update_logs'] ?? [];  // Updates/Renewals
+$duplicateLogs = $_SESSION['duplicate_logs'] ?? []; // Duplicates
+$uploadStats = $_SESSION['upload_stats'] ?? null; // Detailed stats
 
-// Clear session data
+// Clear session data after reading
 unset($_SESSION['upload_message']);
 unset($_SESSION['upload_logs']);
 unset($_SESSION['update_logs']);
+unset($_SESSION['duplicate_logs']);
+unset($_SESSION['upload_stats']);
 ?>
 
 <!DOCTYPE html>
@@ -64,6 +68,18 @@ unset($_SESSION['update_logs']);
         .alert-error { background-color: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
         .alert-warning { background-color: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
         
+        /* STATS CARDS */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border-radius: 12px; padding: 20px; border: 1px solid #e9ecef; transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card.primary { border-left: 4px solid #197b40; }
+        .stat-card.info { border-left: 4px solid #3b82f6; }
+        .stat-card.warning { border-left: 4px solid #f59e0b; }
+        .stat-card.success { border-left: 4px solid #10b981; }
+        .stat-label { font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+        .stat-value { font-size: 32px; font-weight: 700; color: #1f2937; line-height: 1; }
+        .stat-description { font-size: 11px; color: #9ca3af; margin-top: 6px; }
+        
         .instruction-box { background-color: #e8f5e9; border-left: 5px solid #197b40; padding: 20px; border-radius: 10px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
         .instruction-text h4 { color: #197b40; margin-bottom: 5px; font-weight: 700; font-size: 14px; }
         .instruction-text p { color: #555; font-size: 13px; margin: 0; }
@@ -97,6 +113,11 @@ unset($_SESSION['update_logs']);
         .log-update .log-header { background: #eff6ff; color: #1e40af; border-bottom: 1px solid #bfdbfe; }
         .tag-update { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 
+        /* Duplicate Log Specifics */
+        .log-duplicate { border-color: #8b5cf6; }
+        .log-duplicate .log-header { background: #f5f3ff; color: #5b21b6; border-bottom: 1px solid #c4b5fd; }
+        .tag-duplicate { background: #ede9fe; color: #5b21b6; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+
         /* TABLE */
         .table-section-title { margin-bottom: 20px; font-size: 16px; font-weight: 700; color: #333; }
         table { width: 100%; border-collapse: collapse; }
@@ -114,6 +135,7 @@ unset($_SESSION['update_logs']);
         .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
         .loading-spinner { width: 80px; height: 80px; border: 5px solid #e0e0e0; border-top: 5px solid #197b40; border-right: 5px solid #ff9a02; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -149,18 +171,58 @@ unset($_SESSION['update_logs']);
                 <div class="card-title">Upload Data</div>
             </div>
 
-            <div id="alertContainer">
-                <?php if (!empty($uploadMessage)): ?>
-                    <?php 
-                        $statusClass = ($_GET['status'] == 'success') ? 'alert-success' : (($_GET['status'] == 'warning') ? 'alert-warning' : 'alert-error');
-                        $icon = ($_GET['status'] == 'success') ? 'check-circle' : 'alert-circle';
-                    ?>
-                    <div class="alert <?php echo $statusClass; ?>">
-                        <i data-lucide="<?php echo $icon; ?>" style="width: 20px;"></i>
-                        <span><?php echo $uploadMessage; ?></span>
+            <?php if (!empty($uploadMessage)): ?>
+                <?php 
+                    $statusClass = ($_GET['status'] ?? '') == 'success' ? 'alert-success' : (($_GET['status'] ?? '') == 'warning' ? 'alert-warning' : 'alert-error');
+                    $icon = ($_GET['status'] ?? '') == 'success' ? 'check-circle' : 'alert-circle';
+                ?>
+                <div class="alert <?php echo $statusClass; ?>">
+                    <i data-lucide="<?php echo $icon; ?>" style="width: 20px;"></i>
+                    <span><?php echo $uploadMessage; ?></span>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($uploadStats && is_array($uploadStats)): ?>
+                <div class="stats-grid">
+                    <div class="stat-card primary">
+                        <div class="stat-label">📊 Total Rows</div>
+                        <div class="stat-value"><?php echo number_format($uploadStats['total']); ?></div>
+                        <div class="stat-description">Processed from file</div>
                     </div>
-                <?php endif; ?>
-            </div>
+                    <div class="stat-card success">
+                        <div class="stat-label">✅ New Records</div>
+                        <div class="stat-value"><?php echo number_format($uploadStats['unique']); ?></div>
+                        <div class="stat-description">Freshly inserted</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-label">🔄 Duplicates</div>
+                        <div class="stat-value"><?php echo number_format($uploadStats['duplicates']); ?></div>
+                        <div class="stat-description">Existing records updated</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-label">⚠️ Skipped</div>
+                        <div class="stat-value"><?php echo number_format($uploadStats['skipped']); ?></div>
+                        <div class="stat-description">Invalid or incomplete</div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($duplicateLogs)): ?>
+                <div class="log-container log-duplicate">
+                    <div class="log-header">
+                        <i data-lucide="copy" style="width:16px"></i>
+                        Duplicate Records: <?php echo count($duplicateLogs); ?> rows already exist
+                    </div>
+                    <div class="log-body">
+                        <?php foreach($duplicateLogs as $log): ?>
+                            <div class="log-item">
+                                <span class="tag-duplicate">Duplicate</span>
+                                <span><?php echo htmlspecialchars($log); ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <?php if (!empty($uploadLogs)): ?>
                 <div class="log-container log-error">
@@ -247,17 +309,17 @@ unset($_SESSION['update_logs']);
                                 $file_ext = strtolower(pathinfo($row['file_name'], PATHINFO_EXTENSION));
                                 $icon_class = ($file_ext == 'csv') ? 'csv' : '';
                                 $icon_name = ($file_ext == 'csv') ? 'file-text' : 'file-spreadsheet';
-                                $status_class = ($row['status'] == 'Success') ? 'status-success' : 'status-failed';
+                                $status_class = ($row['status'] == 'Success' || $row['status'] == 'Partial Success') ? 'status-success' : 'status-failed';
                                 echo "<tr>";
                                 echo "<td>" . date('Y-m-d H:i', strtotime($row['upload_time'])) . "</td>";
                                 echo "<td><div class='file-cell'><div class='icon-box {$icon_class}'><i data-lucide='{$icon_name}' style='width: 18px'></i></div><span class='file-name-text'>" . htmlspecialchars($row['file_name']) . "</span></div></td>";
                                 echo "<td>" . htmlspecialchars($row['uploaded_by']) . "</td>";
                                 echo "<td><span class='badge {$status_class}'>" . htmlspecialchars($row['status']) . "</span></td>";
-                                echo "<td><span class='row-count'>" . htmlspecialchars($row['rows_processed']) . "</span></td>";
+                                echo "<td><span class='row-count'>" . number_format($row['rows_processed']) . "</span></td>";
                                 echo "</tr>";
                             }
                         } else {
-                            echo "<tr><td colspan='5' class='empty-state'>No uploads yet.</td></tr>";
+                            echo "<tr><td colspan='5' style='text-align:center; color:#999; padding:40px'>No uploads yet.</td></tr>";
                         }
                     }
                     ?>
