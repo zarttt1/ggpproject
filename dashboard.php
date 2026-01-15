@@ -7,8 +7,27 @@ if (!isset($_SESSION['user_id'])) {
 }
 require 'db_connect.php';
 
+// --- HELPER FUNCTION: Smart Date Formatting ---
+function formatDateRange($start_date, $end_date) {
+    $start = strtotime($start_date);
+    $end = (!empty($end_date) && $end_date != '0000-00-00') ? strtotime($end_date) : $start;
+
+    if (date('Y-m-d', $start) === date('Y-m-d', $end)) {
+        return date('M d, Y', $start);
+    }
+
+    if (date('Y', $start) === date('Y', $end)) {
+        if (date('M', $start) === date('M', $end)) {
+            return date('M d', $start) . ' - ' . date('d, Y', $end);
+        }
+        return date('M d', $start) . ' - ' . date('M d, Y', $end);
+    }
+
+    return date('M d, Y', $start) . ' - ' . date('M d, Y', $end);
+}
+
 // ==========================================
-//  0. AJAX HANDLER FOR FILTER DROPDOWNS (Dynamic Options)
+//  0. AJAX HANDLER FOR FILTER DROPDOWNS
 // ==========================================
 if (isset($_GET['get_filter_options'])) {
     $sel_bu = $_GET['bu'] ?? 'All';
@@ -16,27 +35,23 @@ if (isset($_GET['get_filter_options'])) {
 
     $response = ['fn1' => [], 'fn2' => []];
 
-    // 1. Get valid Func N-1 based on BU
-    // We join 'score' to ensure we only show functions that actually have data associated with that BU
+    // 1. Get valid Func N-1
     $q1 = "SELECT DISTINCT f.func_n1 FROM func f 
            JOIN score s ON f.id_func = s.id_func 
            JOIN bu b ON s.id_bu = b.id_bu 
            WHERE f.func_n1 IS NOT NULL AND f.func_n1 != ''";
-    
     if ($sel_bu !== 'All') {
         $q1 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
     }
     $q1 .= " ORDER BY f.func_n1";
-    
     $res1 = $conn->query($q1);
     while($r = $res1->fetch_assoc()) { $response['fn1'][] = $r['func_n1']; }
 
-    // 2. Get valid Func N-2 based on BU AND Func N-1
+    // 2. Get valid Func N-2
     $q2 = "SELECT DISTINCT f.func_n2 FROM func f 
            JOIN score s ON f.id_func = s.id_func 
            JOIN bu b ON s.id_bu = b.id_bu 
            WHERE f.func_n2 IS NOT NULL AND f.func_n2 != ''";
-    
     if ($sel_bu !== 'All') {
         $q2 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
     }
@@ -44,7 +59,6 @@ if (isset($_GET['get_filter_options'])) {
         $q2 .= " AND f.func_n1 = '" . $conn->real_escape_string($sel_fn1) . "'";
     }
     $q2 .= " ORDER BY f.func_n2";
-
     $res2 = $conn->query($q2);
     while($r = $res2->fetch_assoc()) { $response['fn2'][] = $r['func_n2']; }
 
@@ -53,15 +67,14 @@ if (isset($_GET['get_filter_options'])) {
 }
 
 // ==========================================
-//  1. AJAX HANDLER (For Live Search - Training List)
+//  1. AJAX HANDLER (Live Search - Training List)
 // ==========================================
 if (isset($_GET['ajax_search'])) {
     $search_term = $_GET['ajax_search'];
     
-    // We rebuild the basic joins to ensure we get valid data available in the system
-    // We group by training name to show unique programs
+    // Updated query to fetch date, method, code for the table
     $base_sql = "
-        SELECT t.nama_training
+        SELECT t.nama_training, ts.code_sub, ts.date_start, ts.date_end, ts.method
         FROM score s
         JOIN training_session ts ON s.id_session = ts.id_session
         JOIN training t ON ts.id_training = t.id_training
@@ -75,26 +88,35 @@ if (isset($_GET['ajax_search'])) {
         $where_ajax[] = "t.nama_training LIKE '%$safe_search%'";
     }
     
-    $sql_ajax = $base_sql . " WHERE " . implode(' AND ', $where_ajax) . " GROUP BY t.nama_training LIMIT 50";
+    // Group by session to distinct dates
+    $sql_ajax = $base_sql . " WHERE " . implode(' AND ', $where_ajax) . " GROUP BY ts.id_session ORDER BY ts.date_start DESC LIMIT 50";
     
     $result = $conn->query($sql_ajax);
 
     if ($result->num_rows > 0) {
         while($row = $result->fetch_assoc()) {
-            // Output the exact HTML structure for a dashboard list item
+            $date_display = formatDateRange($row['date_start'], $row['date_end']);
+            $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
             ?>
-            <div class="training-item" onclick="selectTraining(this, '<?php echo addslashes($row['nama_training']); ?>')">
-                <div class="training-name-col">
-                    <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
-                    <div class="training-info"><h4><?php echo htmlspecialchars($row['nama_training']); ?></h4></div>
-                </div>
-            </div>
+            <tr onclick="selectTraining(this, '<?php echo addslashes($row['nama_training']); ?>')" style="cursor: pointer;">
+                <td>
+                    <div class="training-cell">
+                        <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
+                        <div>
+                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training']); ?></div>
+                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub']); ?></div>
+                        </div>
+                    </div>
+                </td>
+                <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
+                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
+            </tr>
             <?php
         }
     } else {
-        echo '<div class="training-item"><div style="padding:10px; color:#777;">No training programs found.</div></div>';
+        echo '<tr><td colspan="3" style="text-align:center; padding: 20px; color:#777;">No training programs found.</td></tr>';
     }
-    exit; // Stop execution here for AJAX calls
+    exit; 
 }
 // ==========================================
 //  END AJAX HANDLER
@@ -103,7 +125,6 @@ if (isset($_GET['ajax_search'])) {
 
 // --- 2. STANDARD PAGE LOAD LOGIC ---
 
-// Get Filter Values
 $f_bu = $_GET['bu'] ?? 'All';
 $f_func1 = $_GET['func_n1'] ?? 'All';
 $f_func2 = $_GET['func_n2'] ?? 'All';
@@ -122,7 +143,7 @@ if ($f_func2 !== 'All') $where_clauses[] = "f.func_n2 = '$f_func2'";
 if ($f_type !== 'All') $where_clauses[] = "t.jenis = '$f_type'";
 if (!empty($f_search)) $where_clauses[] = "t.nama_training LIKE '%$f_search%'";
 
-// Date Logic (Robust)
+// Date Logic
 if (!empty($f_start) && !empty($f_end)) {
     $where_clauses[] = "ts.date_start >= '$f_start' AND ts.date_start <= '$f_end'";
 } elseif (!empty($f_start)) {
@@ -146,51 +167,42 @@ $join_sql = "
     WHERE $where_sql
 ";
 
-// --- 3. CALCULATE STATS (UPDATED LOGIC) ---
-
-// 3.1 Total Hours
+// --- 3. CALCULATE STATS ---
 $res_hours = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql);
-$row_hours = $res_hours->fetch_assoc();
-$total_hours_raw = $row_hours['total'] ?? 0;
+$total_hours_raw = $res_hours->fetch_assoc()['total'] ?? 0;
 
-// 3.2 Offline Hours (Method contains "Inclass")
 $res_offline = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND ts.method LIKE '%Inclass%'");
-$row_offline = $res_offline->fetch_assoc();
-$hours_offline_raw = $row_offline['total'] ?? 0;
+$hours_offline_raw = $res_offline->fetch_assoc()['total'] ?? 0;
 
-// 3.3 Online Hours (Method contains "Hybrid" OR "Webinar")
 $res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Hybrid%' OR ts.method LIKE '%Webinar%')");
-$row_online = $res_online->fetch_assoc();
-$hours_online_raw = $row_online['total'] ?? 0;
+$hours_online_raw = $res_online->fetch_assoc()['total'] ?? 0;
 
-// 3.4 Total Participants (NEW)
 $res_part = $conn->query("SELECT COUNT(s.id_score) as total " . $join_sql);
-$row_part = $res_part->fetch_assoc();
-$total_participants_raw = $row_part['total'] ?? 0;
+$total_participants_raw = $res_part->fetch_assoc()['total'] ?? 0;
 
 // --- 4. FETCH TRAINING LIST (Initial Load) ---
-// Exclude specific training filter for the list so user sees all options
+// Exclude specific training filter for the list
 $where_clauses_list = array_diff($where_clauses, ["t.nama_training = '$f_training_name'"]);
 $where_sql_list = implode(' AND ', $where_clauses_list);
 
 $sql_list = "
-    SELECT t.nama_training
+    SELECT t.nama_training, ts.code_sub, ts.date_start, ts.date_end, ts.method
     FROM score s
     JOIN training_session ts ON s.id_session = ts.id_session
     JOIN training t ON ts.id_training = t.id_training
     LEFT JOIN bu b ON s.id_bu = b.id_bu
     LEFT JOIN func f ON s.id_func = f.id_func
     WHERE $where_sql_list
-    GROUP BY t.nama_training
+    GROUP BY ts.id_session
+    ORDER BY ts.date_start DESC
     LIMIT 50
 ";
 $list_trainings = $conn->query($sql_list);
 
-// --- 5. FETCH INITIAL FILTER DROPDOWN OPTIONS ---
-// 5.1 Business Units (Always ALL)
+// --- 5. FETCH FILTER OPTIONS ---
 $opt_bu = $conn->query("SELECT DISTINCT nama_bu FROM bu WHERE nama_bu IS NOT NULL ORDER BY nama_bu");
 
-// 5.2 Initial Func N-1 (Filtered if BU is already selected in GET)
+// Fn1 Logic
 $fn1_query = "SELECT DISTINCT f.func_n1 FROM func f";
 if ($f_bu !== 'All') {
     $fn1_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($f_bu) . "' AND f.func_n1 IS NOT NULL";
@@ -200,9 +212,8 @@ if ($f_bu !== 'All') {
 $fn1_query .= " ORDER BY f.func_n1";
 $opt_func1 = $conn->query($fn1_query);
 
-// 5.3 Initial Func N-2 (Filtered if BU or N-1 is selected)
+// Fn2 Logic
 $fn2_query = "SELECT DISTINCT f.func_n2 FROM func f";
-// We need joins if filtering
 if ($f_bu !== 'All') {
      $fn2_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($f_bu) . "'";
      if ($f_func1 !== 'All') {
@@ -210,7 +221,6 @@ if ($f_bu !== 'All') {
      }
      $fn2_query .= " AND f.func_n2 IS NOT NULL";
 } elseif ($f_func1 !== 'All') {
-    // If only Func1 selected (unlikely via UI but possible via URL)
     $fn2_query .= " WHERE f.func_n1 = '" . $conn->real_escape_string($f_func1) . "' AND f.func_n2 IS NOT NULL";
 } else {
     $fn2_query .= " WHERE f.func_n2 IS NOT NULL";
@@ -312,47 +322,63 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         .b-text h4 { font-size: 12px; font-weight: 400; opacity: 0.85; margin-bottom: 2px; white-space: nowrap; }
         .b-text p { font-size: 18px; font-weight: 700; white-space: nowrap; }
 
-        /* TRAINING SECTION */
+        /* TRAINING SECTION - Updated Table Style & Compact Header */
         .training-section {
             background: white; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: flex; flex-direction: column; flex-grow: 1; min-height: 500px; overflow: hidden;
         }
         .section-header {
-            background-color: #197B40; padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+            background-color: #197B40; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
         }
-        .section-title { font-size: 20px; font-weight: 700; color: white; }
-        .header-actions { display: flex; gap: 15px; align-items: center; }
+        .section-title { font-size: 16px; font-weight: 600; color: white; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        
+        /* Compact Search Box */
         .search-box {
-            background: white; border-radius: 50px; padding: 12px 20px; display: flex; align-items: center; gap: 10px; width: 350px;
+            background: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px;
         }
-        .search-box input { border: none; outline: none; background: transparent; width: 100%; font-size: 14px; color: #333; }
+        .search-box img { width: 16px; height: 16px; margin-right: 8px; }
+        .search-box input { border: none; outline: none; background: transparent; width: 100%; font-size: 13px; color: #333; height: 100%; }
+        
+        /* Compact Filter Button */
         .btn-filter {
-            background: white; border: none; color: #197B40; padding: 12px 24px; border-radius: 50px; 
-            font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.3s;
+            height: 35px; padding: 0 15px; border: none; border-radius: 50px; background: white; color: #197B40; 
+            font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;
         }
-        .btn-filter:hover { background: #f0f0f0; }
-        .training-list {
-            display: flex; flex-direction: column; gap: 0; overflow-y: auto; padding: 20px 30px 30px 30px; flex-grow: 1;
+        .btn-filter:hover { background-color: #f0fdf4; }
+
+        /* TABLE STYLES */
+        .table-responsive { flex-grow: 1; overflow-y: auto; padding: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        
+        th { 
+            text-align: left; 
+            padding: 15px 30px; 
+            font-size: 12px; 
+            color: #555; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            background: white; 
+            border-bottom: 2px solid #eee;
+            position: sticky; top: 0; z-index: 10; 
         }
-        .training-list::-webkit-scrollbar { width: 6px; }
-        .training-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .training-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
-        .training-header {
-            display: grid; grid-template-columns: 1fr; gap: 20px; padding: 15px 20px;
-            border-bottom: 1px solid #eee; font-size: 13px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+        
+        td { padding: 15px 30px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        tr:hover { background-color: #fafbfc; }
+        tr.selected { background-color: #e8f5e9; }
+
+        .training-cell { display: flex; align-items: center; gap: 15px; }
+        .training-cell .icon-box { 
+            background: #e8f5e9; color: #197B40; width: 40px; height: 40px; 
+            border-radius: 8px; display: flex; align-items: center; justify-content: center; 
         }
-        .training-item {
-            display: grid; grid-template-columns: 1fr; gap: 20px; padding: 20px;
-            align-items: center; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #f9f9f9;
-        }
-        .training-item:hover { background: #fafbfc; }
-        .training-item.selected { background: #e8f5e9; }
-        .training-name-col { display: flex; align-items: center; gap: 12px; }
-        .training-icon {
-            background: #e8f5e9; color: #197B40; width: 40px; height: 40px; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-        }
-        .training-info h4 { font-size: 14px; font-weight: 700; color: #333; }
+        .training-name-text { font-weight: 700; line-height: 1.2; font-size: 14px; }
+        
+        /* BADGES */
+        .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
+        .method-online { background: #E0F2F1; color: #00695C; border: 1px solid rgba(0, 105, 92, 0.1); }
+        .method-inclass { background: #FCE4EC; color: #C2185B; border: 1px solid rgba(194, 24, 91, 0.1); }
 
         /* DRAWER STYLES */
         .filter-overlay {
@@ -383,51 +409,21 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         .filter-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
         .date-row { display: flex; gap: 10px; }
         
-        /* DATE INPUT STYLING (Pill Shape + Native Calendar) */
-        .date-input-wrapper { 
-            position: relative; 
-            flex: 1; 
-        }
-        
+        .date-input-wrapper { position: relative; flex: 1; }
         .date-input-wrapper input[type="date"] { 
-            width: 100%; 
-            padding: 10px 15px 10px 40px; 
-            border: 1px solid #e0e0e0; 
-            border-radius: 50px; 
-            font-size: 13px; 
-            outline: none; 
-            color: #333; 
-            font-family: 'Poppins', sans-serif;
-            background-color: #fff;
-            cursor: pointer;
-            transition: all 0.2s;
-            position: relative;
+            width: 100%; padding: 10px 15px 10px 40px; border: 1px solid #e0e0e0; 
+            border-radius: 50px; font-size: 13px; outline: none; color: #333; font-family: 'Poppins', sans-serif;
+            background-color: #fff; cursor: pointer; transition: all 0.2s; position: relative;
         }
-        
-        /* Expand the click area for the native picker */
         .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            width: 100%; height: 100%;
-            color: transparent; background: transparent;
-            cursor: pointer;
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; color: transparent; background: transparent; cursor: pointer;
         }
-
-        .date-input-wrapper input[type="date"]:hover, 
-        .date-input-wrapper input[type="date"]:focus {
-            border-color: #197B40; 
-            box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1);
+        .date-input-wrapper input[type="date"]:hover, .date-input-wrapper input[type="date"]:focus {
+            border-color: #197B40; box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1);
         }
-        
         .date-icon { 
-            position: absolute; 
-            left: 15px; 
-            top: 50%; 
-            transform: translateY(-50%); 
-            color: #197B40; 
-            width: 16px; 
-            pointer-events: none; 
-            z-index: 1; 
+            position: absolute; left: 15px; top: 50%; transform: translateY(-50%); 
+            color: #197B40; width: 16px; pointer-events: none; z-index: 1; 
         }
 
         .filter-group select { 
@@ -582,21 +578,40 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 </div>
             </div>
 
-            <div class="training-list" id="trainingListContainer">
-                <div class="training-header">
-                    <div>Training Name</div>
-                </div>
-                <?php while($row = $list_trainings->fetch_assoc()): ?>
-                <div class="training-item" onclick="selectTraining(this, '<?php echo addslashes($row['nama_training']); ?>')">
-                    <div class="training-name-col">
-                        <div class="training-icon"><i data-lucide="book-open" style="width:18px;"></i></div>
-                        <div class="training-info"><h4><?php echo htmlspecialchars($row['nama_training']); ?></h4></div>
-                    </div>
-                </div>
-                <?php endwhile; ?>
-                <?php if($list_trainings->num_rows == 0): ?>
-                    <div class="training-item"><div style="padding:10px; color:#777;">No training programs found.</div></div>
-                <?php endif; ?>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50%;">Training Name</th>
+                            <th>Date</th>
+                            <th>Method</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trainingListContainer">
+                        <?php if ($list_trainings->num_rows > 0): ?>
+                            <?php while($row = $list_trainings->fetch_assoc()): 
+                                $date_display = formatDateRange($row['date_start'], $row['date_end']);
+                                $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
+                            ?>
+                            <tr onclick="selectTraining(this, '<?php echo addslashes($row['nama_training']); ?>')" style="cursor: pointer;">
+                                <td>
+                                    <div class="training-cell">
+                                        <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
+                                        <div>
+                                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training']); ?></div>
+                                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub']); ?></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
+                                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="3" style="text-align:center; padding: 30px; color:#777;">No training programs found.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -722,10 +737,11 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             valSpan.textContent = activeTraining;
             card.classList.add('has-filter');
 
-            const items = document.querySelectorAll('.training-info h4');
-            items.forEach(h4 => {
-                if(h4.textContent === activeTraining) {
-                    h4.closest('.training-item').classList.add('selected');
+            // Highlight selected row
+            const items = document.querySelectorAll('.training-name-text');
+            items.forEach(div => {
+                if(div.textContent === activeTraining) {
+                    div.closest('tr').classList.add('selected');
                 }
             });
         }
@@ -750,8 +766,8 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         fetch(`?ajax_search=${encodeURIComponent(query)}`)
             .then(response => response.text())
             .then(html => {
-                // Keep the header, replace list items
-                listContainer.innerHTML = '<div class="training-header"><div>Training Name</div></div>' + html;
+                // Replace tbody content
+                listContainer.innerHTML = html;
                 lucide.createIcons(); // Re-initialize icons for new items
             })
             .catch(error => console.error('Error:', error));

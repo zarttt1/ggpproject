@@ -212,9 +212,13 @@ while ($r = fgetcsv($h, 10000, $del)) {
     $sk = $train[$subj] . '|' . trim($r[3] ?? '') . '|' . $ds;
     if (!isset($sess[$sk])) {
         $de = parseDateFast($r[5] ?? '') ?: $ds;
+        
+        // --- MODIFIED: Force 0 if blank/null ---
+        $creditHours = f($r[6]) ?? 0; 
+
         $insSess->execute([
             $train[$subj], trim($r[3] ?? ''), trim($r[10] ?? ''),
-            $ds, $de, f($r[6]), trim($r[7]), trim($r[9])
+            $ds, $de, $creditHours, trim($r[7]), trim($r[9])
         ]);
         $sess[$sk] = $pdo->lastInsertId();
     }

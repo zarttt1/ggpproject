@@ -12,7 +12,7 @@ $username = $_SESSION['username'] ?? 'User';
 $initials = strtoupper(substr($username, 0, 2));
 
 // ==========================================
-//  0. AJAX HANDLER FOR FILTER DROPDOWNS (Dynamic Options)
+//  0. AJAX HANDLER FOR FILTER DROPDOWNS
 // ==========================================
 if (isset($_GET['get_filter_options'])) {
     $sel_bu = $_GET['bu'] ?? 'All BUs';
@@ -20,7 +20,7 @@ if (isset($_GET['get_filter_options'])) {
 
     $response = ['fn1' => [], 'fn2' => []];
 
-    // 1. Get valid Func N-1 based on BU
+    // 1. Get valid Func N-1
     $q1 = "SELECT DISTINCT f.func_n1 FROM func f 
            JOIN score s ON f.id_func = s.id_func 
            JOIN bu b ON s.id_bu = b.id_bu 
@@ -32,7 +32,7 @@ if (isset($_GET['get_filter_options'])) {
     $res1 = $conn->query($q1);
     while($r = $res1->fetch_assoc()) { $response['fn1'][] = $r['func_n1']; }
 
-    // 2. Get valid Func N-2 based on BU AND Func N-1
+    // 2. Get valid Func N-2
     $q2 = "SELECT DISTINCT f.func_n2 FROM func f 
            JOIN score s ON f.id_func = s.id_func 
            JOIN bu b ON s.id_bu = b.id_bu 
@@ -61,7 +61,7 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10;
 $offset = ($page - 1) * $limit;
 
-// --- HELPER FUNCTION: Abbreviate BU Names ---
+// --- HELPER FUNCTION ---
 function getAbbreviation($name) {
     if (empty($name) || $name === '-') return '-';
     $manual_map = [
@@ -80,10 +80,8 @@ function getAbbreviation($name) {
     return (strlen($name) > 4) ? strtoupper(substr($name, 0, 3)) : strtoupper($name);
 }
 
-// --- BUILD WHERE CLAUSE (Used by both Main Load and AJAX) ---
+// --- BUILD WHERE CLAUSE ---
 $where_clauses = ["1=1"];
-
-// 1. Search Logic
 $search_term = $_GET['ajax_search'] ?? $search; 
 
 if (!empty($search_term)) {
@@ -91,21 +89,13 @@ if (!empty($search_term)) {
     $where_clauses[] = "(k.nama_karyawan LIKE '%$safe_search%' OR k.index_karyawan LIKE '%$safe_search%')";
 }
 
-// 2. Define Subqueries for Filtering
 $sub_bu = "(SELECT b.nama_bu FROM score s JOIN bu b ON s.id_bu = b.id_bu WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1)";
 $sub_fn1 = "(SELECT f.func_n1 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1)";
 $sub_fn2 = "(SELECT f.func_n2 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1)";
 
-// 3. Filter Logic
-if ($filter_bu !== 'All BUs') {
-    $where_clauses[] = "$sub_bu = '" . $conn->real_escape_string($filter_bu) . "'";
-}
-if ($filter_fn1 !== 'All Func N-1') {
-    $where_clauses[] = "$sub_fn1 = '" . $conn->real_escape_string($filter_fn1) . "'";
-}
-if ($filter_fn2 !== 'All Func N-2') {
-    $where_clauses[] = "$sub_fn2 = '" . $conn->real_escape_string($filter_fn2) . "'";
-}
+if ($filter_bu !== 'All BUs') $where_clauses[] = "$sub_bu = '" . $conn->real_escape_string($filter_bu) . "'";
+if ($filter_fn1 !== 'All Func N-1') $where_clauses[] = "$sub_fn1 = '" . $conn->real_escape_string($filter_fn1) . "'";
+if ($filter_fn2 !== 'All Func N-2') $where_clauses[] = "$sub_fn2 = '" . $conn->real_escape_string($filter_fn2) . "'";
 
 $where_sql = implode(' AND ', $where_clauses);
 
@@ -144,17 +134,17 @@ if (isset($_GET['ajax_search'])) {
             $fn2 = $e['latest_func_n2'] ?? '-';
             ?>
             <tr>
-                <td><?php echo htmlspecialchars($e['index_karyawan']); ?></td>
+                <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($e['index_karyawan']); ?></td>
                 <td>
                     <div class="user-cell">
                         <div class="user-avatar"><?php echo $initials; ?></div> 
-                        <?php echo htmlspecialchars($e['nama_karyawan']); ?>
+                        <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($e['nama_karyawan']); ?></span>
                     </div>
                 </td>
-                <td><strong><?php echo htmlspecialchars($bu); ?></strong></td>
-                <td><?php echo htmlspecialchars($fn1); ?></td>
-                <td><?php echo htmlspecialchars($fn2); ?></td>
-                <td><span class="<?php echo $badgeClass; ?>"><?php echo $partCount; ?> Sessions</span></td>
+                <td><span class="text-subtle"><?php echo htmlspecialchars($bu); ?></span></td>
+                <td><span class="text-subtle"><?php echo htmlspecialchars($fn1); ?></span></td>
+                <td><span class="text-subtle"><?php echo htmlspecialchars($fn2); ?></span></td>
+                <td style="text-align:center;"><span class="participation-badge <?php echo $badgeClass; ?>"><?php echo $partCount; ?></span></td>
                 <td>
                     <button class="btn-view" onclick="window.location.href='employee_training_history.php?id_karyawan=<?php echo $e['id_karyawan']; ?>'">
                         <span>View History</span>
@@ -165,7 +155,7 @@ if (isset($_GET['ajax_search'])) {
             <?php
         }
     } else {
-        echo '<tr><td colspan="7" style="text-align:center; padding: 20px; color:#888;">No employees found.</td></tr>';
+        echo '<tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No employees found.</td></tr>';
     }
     $table_html = ob_get_clean();
 
@@ -223,13 +213,9 @@ $list_sql = "
 ";
 $employees = $conn->query($list_sql);
 
-// ==========================================
-//  FETCH INITIAL FILTER OPTIONS
-// ==========================================
-// 1. Business Units (Always ALL)
+// --- FETCH INITIAL FILTERS ---
 $bu_opts = $conn->query("SELECT DISTINCT nama_bu FROM bu WHERE nama_bu IS NOT NULL ORDER BY nama_bu");
 
-// 2. Initial Function N-1 (Filtered by selected BU if any)
 $fn1_query = "SELECT DISTINCT f.func_n1 FROM func f";
 if ($filter_bu !== 'All BUs') {
     $fn1_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($filter_bu) . "' AND f.func_n1 IS NOT NULL";
@@ -239,7 +225,6 @@ if ($filter_bu !== 'All BUs') {
 $fn1_query .= " ORDER BY f.func_n1";
 $fn1_opts = $conn->query($fn1_query);
 
-// 3. Initial Function N-2 (Filtered by selected BU if any)
 $fn2_query = "SELECT DISTINCT f.func_n2 FROM func f";
 if ($filter_bu !== 'All BUs') {
     $fn2_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($filter_bu) . "' AND f.func_n2 IS NOT NULL";
@@ -277,26 +262,38 @@ $fn2_opts = $conn->query($fn2_query);
         .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
         .btn-signout:hover { background-color: #b71c1c; }
 
+        /* TABLE */
         .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; margin-top: 20px; display: flex; flex-direction: column; }
         .table-header-strip { background-color: #197b40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
         .table-title { font-weight: 600; font-size: 16px; }
         .table-actions { display: flex; gap: 12px; align-items: center; }
+        
         .search-box { background-color: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; }
-        .search-box i { color: #197B40; width: 16px; height: 16px; }
+        .search-box img { width: 16px; height: 16px; margin-right: 8px; }
         .search-box input { border: none; background: transparent; outline: none; height: 100%; flex: 1; padding-left: 10px; font-size: 13px; color: #333; }
+        
         .btn-action-small { height: 35px; padding: 0 15px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; text-decoration: none; transition: 0.2s; }
         .btn-action-small:hover { background-color: #f0fdf4; }
 
         .table-responsive { flex-grow: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; border-bottom: 1px solid #eee; position: sticky; top: 0; background: white; z-index: 10; }
-        td { padding: 15px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
-        .user-cell { display: flex; align-items: center; gap: 10px; font-weight: 600; }
-        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: #197B40; color: white; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
         
-        .badge-high { background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
-        .badge-med { background-color: #fff7ed; color: #c2410c; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
-        .badge-low { background-color: #f3f4f6; color: #6b7280; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
+        th { 
+            text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+            border-bottom: 1px solid #eee; position: sticky; top: 0; background: white; z-index: 10; 
+        }
+        
+        td { padding: 15px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        td:not(:first-child) { white-space: nowrap; }
+
+        .user-cell { display: flex; align-items: center; gap: 12px; }
+        .user-avatar { width: 35px; height: 35px; border-radius: 50%; background-color: #197B40; color: white; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .text-subtle { color: #666; font-size: 13px; }
+
+        .participation-badge { padding: 4px 10px; border-radius: 50px; font-size: 11px; font-weight: 700; display: inline-block; min-width: 30px; text-align: center; }
+        .badge-high { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .badge-med { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
+        .badge-low { background-color: #f5f5f5; color: #757575; border: 1px solid #e0e0e0; }
         
         .btn-view { position: relative; background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%); color: white; border: none; padding: 10px 14px; border-radius: 25px; font-size: 12px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; overflow: visible; transition: transform 0.2s; white-space: nowrap; }
         .btn-view:active { transform: scale(0.98); }
@@ -308,8 +305,8 @@ $fn2_opts = $conn->query($fn2_query);
 
         .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; border-top: 1px solid #f9f9f9; }
         .pagination-controls { display: flex; align-items: center; gap: 8px; }
-        .page-num { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
-        .page-num.active { background-color: #197B40; color: white; font-weight: 600; }
+        .page-num { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; text-decoration: none; color: #4a4a4a; font-weight: 500; }
+        .page-num.active { background-color: #197B40; color: white; }
         .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
 
         /* --- FILTER DRAWER STYLES --- */
@@ -348,8 +345,8 @@ $fn2_opts = $conn->query($fn2_query);
                 <a href="dashboard.php">Dashboard</a>
                 <a href="reports.php">Trainings</a>
                 <a href="employee_reports.php" class="active">Employees</a>
-                <a href="upload.php">Upload Data</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="upload.php">Upload Data</a>
                     <a href="users.php">Users</a>
                 <?php endif; ?>
             </div>
@@ -364,12 +361,12 @@ $fn2_opts = $conn->query($fn2_query);
                 <div class="table-title">Employee List</div>
                 <div class="table-actions">
                     <div class="search-box">
-                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
+                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
                         <input type="text" id="searchInput" placeholder="Search by Name or Index..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
                     
                     <button class="btn-action-small" onclick="toggleDrawer()">
-                        <img src="icons/filter.ico" style="width: 20px; height: 20px;">
+                        <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Filter">
                         Filter
                     </button>
                 </div>
@@ -383,7 +380,7 @@ $fn2_opts = $conn->query($fn2_query);
                             <th>BU</th>
                             <th>Function N-1</th>
                             <th>Function N-2</th>
-                            <th>Total Participation</th>
+                            <th style="text-align:center;">Participation</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -399,17 +396,17 @@ $fn2_opts = $conn->query($fn2_query);
                                 $fn2 = $e['latest_func_n2'] ?? '-';
                             ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($e['index_karyawan']); ?></td>
+                                <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($e['index_karyawan']); ?></td>
                                 <td>
                                     <div class="user-cell">
                                         <div class="user-avatar"><?php echo $initials; ?></div> 
-                                        <?php echo htmlspecialchars($e['nama_karyawan']); ?>
+                                        <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($e['nama_karyawan']); ?></span>
                                     </div>
                                 </td>
-                                <td><strong><?php echo htmlspecialchars($bu); ?></strong></td>
-                                <td><?php echo htmlspecialchars($fn1); ?></td>
-                                <td><?php echo htmlspecialchars($fn2); ?></td>
-                                <td><span class="<?php echo $badgeClass; ?>"><?php echo $partCount; ?> Sessions</span></td>
+                                <td><span class="text-subtle"><?php echo htmlspecialchars($bu); ?></span></td>
+                                <td><span class="text-subtle"><?php echo htmlspecialchars($fn1); ?></span></td>
+                                <td><span class="text-subtle"><?php echo htmlspecialchars($fn2); ?></span></td>
+                                <td style="text-align:center;"><span class="participation-badge <?php echo $badgeClass; ?>"><?php echo $partCount; ?> Session</span></td>
                                 <td>
                                     <button class="btn-view" onclick="window.location.href='employee_training_history.php?id_karyawan=<?php echo $e['id_karyawan']; ?>'">
                                         <span>View History</span>
@@ -419,7 +416,7 @@ $fn2_opts = $conn->query($fn2_query);
                             </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <tr><td colspan="7" style="text-align:center; padding: 20px; color:#888;">No employees found.</td></tr>
+                            <tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No employees found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -518,14 +515,11 @@ $fn2_opts = $conn->query($fn2_query);
             const bu = document.getElementById('filterBU').value;
             const fn1 = document.getElementById('filterFn1').value;
 
-            // Fetch new options based on current selections
             fetch(`?get_filter_options=1&bu=${encodeURIComponent(bu)}&fn1=${encodeURIComponent(fn1)}`)
                 .then(res => res.json())
                 .then(data => {
-                    // Update Fn1 if BU changed
                     if (trigger === 'bu') {
                         const fn1Select = document.getElementById('filterFn1');
-                        // Keep current selection if valid, else reset
                         const currentVal = fn1Select.value;
                         fn1Select.innerHTML = '<option value="All Func N-1">All Func N-1</option>';
                         data.fn1.forEach(opt => {
@@ -537,7 +531,6 @@ $fn2_opts = $conn->query($fn2_query);
                         });
                     }
 
-                    // Always update Fn2 based on BU & Fn1
                     const fn2Select = document.getElementById('filterFn2');
                     const currentFn2Val = fn2Select.value;
                     fn2Select.innerHTML = '<option value="All Func N-2">All Func N-2</option>';
@@ -567,13 +560,10 @@ $fn2_opts = $conn->query($fn2_query);
             window.location.search = params.toString();
         }
 
-        // --- LIVE SEARCH LOGIC ---
         const searchInput = document.getElementById('searchInput');
         const tableBody = document.getElementById('tableBody');
         const paginationContainer = document.getElementById('paginationContainer');
-        const exportBtn = document.getElementById('exportBtn');
 
-        // Capture current filters for AJAX search
         const currentBU = "<?php echo htmlspecialchars($filter_bu); ?>";
         const currentFn1 = "<?php echo htmlspecialchars($filter_fn1); ?>";
         const currentFn2 = "<?php echo htmlspecialchars($filter_fn2); ?>";
@@ -584,18 +574,10 @@ $fn2_opts = $conn->query($fn2_query);
         }
 
         function fetchData(query, page = 1) {
-            // Include filters in AJAX URL
             let url = `?ajax_search=${encodeURIComponent(query)}&page=${page}`;
             if(currentBU !== 'All BUs') url += `&bu=${encodeURIComponent(currentBU)}`;
             if(currentFn1 !== 'All Func N-1') url += `&fn1=${encodeURIComponent(currentFn1)}`;
             if(currentFn2 !== 'All Func N-2') url += `&fn2=${encodeURIComponent(currentFn2)}`;
-
-            // Update Export Link
-            let exportUrl = `export_employees.php?search=${encodeURIComponent(query)}`;
-            if(currentBU !== 'All BUs') exportUrl += `&bu=${encodeURIComponent(currentBU)}`;
-            if(currentFn1 !== 'All Func N-1') exportUrl += `&fn1=${encodeURIComponent(currentFn1)}`;
-            if(currentFn2 !== 'All Func N-2') exportUrl += `&fn2=${encodeURIComponent(currentFn2)}`;
-            exportBtn.href = exportUrl;
 
             fetch(url)
                 .then(response => response.json())

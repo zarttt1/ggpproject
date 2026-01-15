@@ -12,6 +12,8 @@ $initials = strtoupper(substr($username, 0, 2));
 
 // --- HELPER FUNCTION: Smart Date Formatting ---
 function formatDateRange($start_date, $end_date) {
+    if (empty($start_date)) return '-';
+    
     $start = strtotime($start_date);
     $end = (!empty($end_date) && $end_date != '0000-00-00') ? strtotime($end_date) : $start;
 
@@ -77,34 +79,39 @@ if (isset($_GET['ajax_search'])) {
         WHERE $where_sql_ajax
         GROUP BY ts.id_session
         ORDER BY ts.date_start DESC
-        LIMIT $limit OFFSET 0 
+        LIMIT $limit OFFSET $offset 
     "; 
     $result = $conn->query($data_sql);
 
     ob_start();
     if ($result->num_rows > 0) {
         while($row = $result->fetch_assoc()) {
-            $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
-            $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
+            // Null coalescing for safe output
+            $category = $row['category'] ?? '';
+            $method = $row['method'] ?? '';
+            $training_type = $row['training_type'] ?? '';
+            
+            $catClass = (stripos($category, 'Technical') !== false) ? 'type-tech' : ((stripos($category, 'Soft') !== false) ? 'type-soft' : 'type-default');
+            $methodClass = (stripos($method, 'Inclass') !== false) ? 'method-inclass' : 'method-online';
             $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
             
-            $date_display = formatDateRange($row['date_start'], $row['date_end']);
+            $date_display = formatDateRange($row['date_start'] ?? '', $row['date_end'] ?? '');
             ?>
             <tr>
                 <td>
                     <div class="training-cell">
                         <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
                         <div>
-                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training']); ?></div>
-                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub']); ?></div>
+                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training'] ?? ''); ?></div>
+                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub'] ?? ''); ?></div>
                         </div>
                     </div>
                 </td>
                 <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
-                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
-                <td><span class="badge type-info"><?php echo htmlspecialchars($row['training_type']); ?></span></td>
-                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
-                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour']); ?></td>
+                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span></td>
+                <td><span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span></td>
+                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span></td>
+                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour'] ?? '0'); ?></td>
                 <td style="text-align:center;"><?php echo $row['participants']; ?></td>
                 <td class="score"><?php echo $avgScore; ?></td>
                 <td>
@@ -265,7 +272,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         
         th { 
             text-align: left; 
-            padding: 15px 25px; 
+            padding: 15px 30px; 
             font-size: 12px; 
             color: #555; 
             font-weight: 700; 
@@ -276,13 +283,16 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
             position: sticky; top: 0; z-index: 10; 
         }
         
-        td { padding: 16px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        td { padding: 15px 30px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         
         td:not(:first-child) { white-space: nowrap; }
 
-        .training-cell { display: flex; align-items: center; gap: 12px; }
-        .icon-box { background: #e8f5e9; color: #197B40; padding: 8px; border-radius: 8px; display: flex; align-items: center; }
-        .training-name-text { font-weight: 700; line-height: 1.2; }
+        .training-cell { display: flex; align-items: center; gap: 15px; }
+        .training-cell .icon-box { 
+            background: #e8f5e9; color: #197B40; width: 40px; height: 40px; 
+            border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; 
+        }
+        .training-name-text { font-weight: 700; line-height: 1.2; font-size: 14px; }
         
         /* BADGES */
         .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
@@ -417,31 +427,36 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                     <tbody id="tableBody">
                         <?php if ($result->num_rows > 0): ?>
                             <?php while($row = $result->fetch_assoc()): 
-                                $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
-                                $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
+                                // Safe output handling for potential NULLs
+                                $category = $row['category'] ?? '';
+                                $method = $row['method'] ?? '';
+                                $training_type = $row['training_type'] ?? '';
+
+                                $catClass = (stripos($category, 'Technical') !== false) ? 'type-tech' : ((stripos($category, 'Soft') !== false) ? 'type-soft' : 'type-default');
+                                $methodClass = (stripos($method, 'Inclass') !== false) ? 'method-inclass' : 'method-online';
                                 $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
                                 
-                                $date_display = formatDateRange($row['date_start'], $row['date_end']);
+                                $date_display = formatDateRange($row['date_start'] ?? '', $row['date_end'] ?? '');
                             ?>
                             <tr>
                                 <td>
                                     <div class="training-cell">
                                         <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
                                         <div>
-                                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training']); ?></div>
-                                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub']); ?></div>
+                                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training'] ?? ''); ?></div>
+                                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub'] ?? ''); ?></div>
                                         </div>
                                     </div>
                                 </td>
                                 <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
                                 
-                                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
+                                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span></td>
                                 
-                                <td><span class="badge type-info"><?php echo htmlspecialchars($row['training_type']); ?></span></td>
+                                <td><span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span></td>
                                 
-                                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
+                                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span></td>
                                 
-                                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour']); ?></td>
+                                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour'] ?? '0'); ?></td>
                                 <td style="text-align:center;"><?php echo $row['participants']; ?></td>
                                 <td class="score"><?php echo $avgScore; ?></td>
                                 <td>

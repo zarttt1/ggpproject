@@ -1,6 +1,6 @@
 <?php
 session_start();
-require 'db_connect.php'; // Use your centralized database connection
+require 'db_connect.php'; 
 
 // 1. Security Check
 if (!isset($_SESSION['user_id'])) {
@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 // 2. Get User Details
 $username = $_SESSION['username'] ?? 'User';
 $initials = strtoupper(substr($username, 0, 2));
+$role = $_SESSION['role'] ?? 'user'; // Check role
 
 // Validate ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -19,6 +20,30 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 }
 
 $id_session = (int)$_GET['id'];
+
+// --- HANDLE EDIT FORM SUBMISSION ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_training'])) {
+    $new_title = trim($_POST['title']);
+    $new_code = trim($_POST['code']);
+    $new_date = $_POST['date'];
+    
+    if (!empty($new_title) && !empty($new_code) && !empty($new_date)) {
+        // Update Training Name
+        $stmt1 = $conn->prepare("UPDATE training t JOIN training_session ts ON t.id_training = ts.id_training SET t.nama_training = ? WHERE ts.id_session = ?");
+        $stmt1->bind_param("si", $new_title, $id_session);
+        $stmt1->execute();
+        
+        // Update Session Details
+        $stmt2 = $conn->prepare("UPDATE training_session SET code_sub = ?, date_start = ? WHERE id_session = ?");
+        $stmt2->bind_param("ssi", $new_code, $new_date, $id_session);
+        $stmt2->execute();
+        
+        // Redirect to refresh data
+        header("Location: tdetails.php?id=" . $id_session);
+        exit();
+    }
+}
+
 $search = $_GET['search'] ?? '';
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10;
@@ -67,23 +92,23 @@ if (isset($_GET['ajax_search'])) {
             $initials = strtoupper(substr($p['nama_karyawan'], 0, 1) . substr(explode(' ', $p['nama_karyawan'])[1] ?? '', 0, 1));
             ?>
             <tr>
-                <td><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
+                <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
                 <td>
                     <div class="user-cell">
                         <div class="user-avatar"><?php echo $initials; ?></div> 
-                        <?php echo htmlspecialchars($p['nama_karyawan']); ?>
+                        <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($p['nama_karyawan']); ?></span>
                     </div>
                 </td>
-                <td><?php echo htmlspecialchars($p['nama_bu']); ?></td>
-                <td><?php echo htmlspecialchars($p['func_n1']); ?></td>
-                <td><?php echo $p['pre']; ?></td>
-                <td><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
-                <td><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
+                <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['nama_bu']); ?></span></td>
+                <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['func_n1']); ?></span></td>
+                <td style="text-align:center; color:#888;"><?php echo $p['pre']; ?></td>
+                <td style="text-align:center;"><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
+                <td style="text-align:center;"><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
             </tr>
             <?php
         }
     } else {
-        echo '<tr><td colspan="7" style="text-align:center; padding: 20px; color:#888;">No participants found.</td></tr>';
+        echo '<tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No participants found.</td></tr>';
     }
     $table_html = ob_get_clean();
 
@@ -92,9 +117,17 @@ if (isset($_GET['ajax_search'])) {
     ?>
     <div>Showing <?php echo ($total_rows > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
     <div class="pagination-controls">
-        <?php if($page > 1): $prev = $page - 1; echo "<a href='?id=$id_session&page=$prev&search=$search_term' class='page-btn'>&lt;</a>"; endif; ?>
-        <a href="#" class="page-btn active"><?php echo $page; ?></a>
-        <?php if($page < $total_pages): $next = $page + 1; echo "<a href='?id=$id_session&page=$next&search=$search_term' class='page-btn'>&gt;</a>"; endif; ?>
+        <?php if($page > 1): $prev = $page - 1; echo "<a href='#' onclick='changePage($prev); return false;' class='btn-next' style='transform: rotate(180deg); display:inline-block;'><i data-lucide='chevron-right' style='width:16px;'></i></a>"; endif; ?>
+        
+        <?php for($i=1; $i<=$total_pages; $i++): ?>
+            <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
+                <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
+            <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
+                <span class="dots">...</span>
+            <?php endif; ?>
+        <?php endfor; ?>
+
+        <?php if($page < $total_pages): $next = $page + 1; echo "<a href='#' onclick='changePage($next); return false;' class='btn-next'>Next <i data-lucide='chevron-right' style='width:16px;'></i></a>"; endif; ?>
     </div>
     <?php
     $pagination_html = ob_get_clean();
@@ -125,6 +158,7 @@ if ($meta_result->num_rows == 0) {
 $meta = $meta_result->fetch_assoc();
 $training_name = htmlspecialchars($meta['nama_training']);
 $code_sub = htmlspecialchars($meta['code_sub']);
+$training_date_raw = $meta['date_start'];
 $training_date = date('d M Y', strtotime($meta['date_start']));
 
 // --- 2. CALCULATE STATS ---
@@ -160,9 +194,7 @@ $sat_subject = $stats['avg_subject'] ? number_format($stats['avg_subject'], 1) :
 $sat_instructor = $stats['avg_instructor'] ? number_format($stats['avg_instructor'], 1) : '-';
 $sat_infras = $stats['avg_infras'] ? number_format($stats['avg_infras'], 1) : '-';
 
-// --- 3. FETCH TOP 3 IMPROVERS (UPDATED LOGIC) ---
-// ORDER BY improvement DESC (Highest Gain)
-// THEN BY s.pre ASC (Lowest Starting Score gets priority)
+// --- 3. FETCH TOP 3 IMPROVERS ---
 $top_sql = "
     SELECT k.nama_karyawan, (s.post - s.pre) as improvement, s.post, s.pre
     FROM score s 
@@ -173,7 +205,7 @@ $top_sql = "
 ";
 $top_improvers = $conn->query($top_sql);
 
-// --- 4. FETCH TABLE DATA ---
+// --- 4. FETCH TABLE DATA (Initial Load) ---
 $where_search = "";
 if (!empty($search)) {
     $safe_search = $conn->real_escape_string($search);
@@ -202,18 +234,10 @@ $participants = $conn->query($list_sql);
 // Prepare Histogram Data for JS
 $histLabels = ['0-20', '21-40', '41-60', '61-80', '81-100'];
 $postHistData = [
-    $stats['post_0_20'], 
-    $stats['post_21_40'], 
-    $stats['post_41_60'], 
-    $stats['post_61_80'], 
-    $stats['post_81_100']
+    $stats['post_0_20'], $stats['post_21_40'], $stats['post_41_60'], $stats['post_61_80'], $stats['post_81_100']
 ];
 $preHistData = [
-    $stats['pre_0_20'], 
-    $stats['pre_21_40'], 
-    $stats['pre_41_60'], 
-    $stats['pre_61_80'], 
-    $stats['pre_81_100']
+    $stats['pre_0_20'], $stats['pre_21_40'], $stats['pre_41_60'], $stats['pre_61_80'], $stats['pre_81_100']
 ];
 ?>
 <!DOCTYPE html>
@@ -226,16 +250,13 @@ $preHistData = [
     <link rel="icon" type="image/png" href="icons/icon.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* --- GLOBAL STYLES --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
-        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
-        .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; }
+        body { background-color: #117054; padding: 0; margin: 0; min-height: 100vh; overflow-y: auto; }
+        .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; min-height: 100vh; width: 100%; position: relative; display: flex; flex-direction: column; }
         
         /* NAVBAR */
-        .navbar {
-            background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
-            display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
-            margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; 
-        }
+        .navbar { background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
         .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
@@ -256,7 +277,9 @@ $preHistData = [
         .hero-left { display: flex; align-items: center; gap: 30px; position: relative; z-index: 2; }
         .mascot-img { height: 150px; width: auto; filter: drop-shadow(0 10px 10px rgba(0,0,0,0.2)); transform: scaleX(-1); }
         .hero-text h4 { font-size: 14px; opacity: 0.8; font-weight: 500; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
-        .hero-text h1 { font-size: 32px; font-weight: 700; margin-bottom: 10px; line-height: 1.2; }
+        .hero-text h1 { font-size: 32px; font-weight: 700; margin-bottom: 10px; line-height: 1.2; display: flex; align-items: center; gap: 10px; }
+        .edit-icon { opacity: 0.6; cursor: pointer; transition: opacity 0.2s; }
+        .edit-icon:hover { opacity: 1; }
         .hero-meta { display: flex; align-items: center; gap: 10px; font-size: 14px; opacity: 0.9; }
         .hero-stats { display: flex; gap: 30px; position: relative; z-index: 2; }
         .h-stat-box { text-align: right; }
@@ -266,24 +289,14 @@ $preHistData = [
         .back-btn { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.15); color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: background 0.2s; z-index: 10; }
         .back-btn:hover { background: rgba(255,255,255,0.25); }
 
-        /* --- 3-COLUMN GRID: Pre Chart | Post Chart | Satisfaction --- */
+        /* --- 3-COLUMN GRID --- */
         .charts-container { display: grid; grid-template-columns: 1fr 1fr 280px; gap: 20px; margin-bottom: 30px; }
-        
         .chart-card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); height: 100%; }
         .chart-title { font-size: 15px; font-weight: 700; color: #197B40; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-
         .satisfaction-stack { display: flex; flex-direction: column; gap: 15px; height: 100%; }
-        .stat-card-small { 
-            background: white; border-radius: 15px; padding: 15px 20px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
-            display: flex; align-items: center; justify-content: space-between; 
-            flex: 1; 
-        }
+        .stat-card-small { background: white; border-radius: 15px; padding: 15px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between; flex: 1; }
         .sat-left { display: flex; align-items: center; gap: 15px; }
-        .sat-icon-box { 
-            width: 45px; height: 45px; border-radius: 12px; 
-            display: flex; align-items: center; justify-content: center; font-size: 20px; 
-        }
+        .sat-icon-box { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
         .sat-text h5 { font-size: 13px; color: #555; margin-bottom: 2px; font-weight: 600; }
         .sat-text p { font-size: 11px; color: #999; margin: 0; }
         .sat-value { font-size: 20px; font-weight: 700; color: #197b40; }
@@ -293,11 +306,8 @@ $preHistData = [
         .improver-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
         .improver-card { background: white; border-radius: 15px; padding: 20px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-bottom: 4px solid #eee; }
         .improver-card.gold { border-bottom-color: #FFD700; }
-        .improver-card.gold .medal-icon { background: transparent; }
         .improver-card.silver { border-bottom-color: #C0C0C0; }
-        .improver-card.silver .medal-icon { background: transparent; }
         .improver-card.bronze { border-bottom-color: #CD7F32; }
-        .improver-card.bronze .medal-icon { background: transparent; }
         .medal-icon { width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .medal-icon img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1)); }
         .imp-info h4 { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 2px; }
@@ -310,21 +320,44 @@ $preHistData = [
         .table-title { font-weight: 600; font-size: 16px; }
         .table-actions { display: flex; gap: 12px; align-items: center; }
         .search-box { background-color: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; }
-        .search-box i { color: #197B40; width: 16px; height: 16px; }
+        .search-box img { width: 16px; height: 16px; margin-right: 8px; }
         .search-box input { border: none; background: transparent; outline: none; height: 100%; flex: 1; padding-left: 10px; font-size: 13px; color: #333; }
         .btn-export { height: 35px; padding: 0 20px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; text-decoration: none; }
         .btn-export:hover { background-color: #f0fdf4; }
 
+        .table-responsive { flex-grow: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; border-bottom: 1px solid #eee; }
+        th { text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; border-bottom: 1px solid #eee; text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; background: white; z-index: 10; }
         td { padding: 15px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         .user-cell { display: flex; align-items: center; gap: 10px; font-weight: 600; }
         .user-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: #197B40; color: white; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        
         .badge-improvement { background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         .badge-decline { background-color: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
-        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; }
-        .page-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
-        .page-btn.active { background-color: #197B40; color: white; font-weight: 600; }
+        
+        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; border-top: 1px solid #f9f9f9; }
+        .pagination-controls { display: flex; align-items: center; gap: 8px; }
+        .page-num { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; text-decoration: none; color: #4a4a4a; font-weight: 500; }
+        .page-num.active { background-color: #197B40; color: white; }
+        .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
+
+        /* --- MODAL STYLES --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal { background: white; width: 400px; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); transform: scale(0.9); opacity: 0; transition: all 0.3s; }
+        .modal.open { transform: scale(1); opacity: 1; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-title { font-size: 18px; font-weight: 700; color: #333; }
+        .modal-close { cursor: pointer; color: #888; transition: 0.2s; }
+        .modal-close:hover { color: #333; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; outline: none; font-size: 14px; font-family: 'Poppins', sans-serif; }
+        .form-group input:focus { border-color: #197B40; }
+        .modal-footer { display: flex; gap: 10px; margin-top: 25px; }
+        .btn-save { flex: 1; background: #197B40; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-save:hover { background: #145a32; }
+        .btn-cancel { flex: 1; background: #f3f4f7; color: #666; border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-cancel:hover { background: #e0e0e0; }
     </style>
 </head>
 <body>
@@ -334,10 +367,10 @@ $preHistData = [
             <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="reports.php">Trainings</a>
+                <a href="reports.php" class="active">Trainings</a>
                 <a href="employee_reports.php">Employees</a>
-                <a href="upload.php">Upload Data</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                    <a href="upload.php">Upload Data</a>
                     <a href="users.php">Users</a>
                 <?php endif; ?>
             </div>
@@ -354,7 +387,12 @@ $preHistData = [
                 <img src="icons/Pina - Info.png" alt="Mascot" class="mascot-img">
                 <div class="hero-text">
                     <h4>Training Session Report</h4>
-                    <h1><?php echo $training_name; ?></h1>
+                    <h1>
+                        <?php echo $training_name; ?>
+                        <?php if($role === 'admin'): ?>
+                            <i data-lucide="edit-2" class="edit-icon" style="width:18px; margin-left:10px;" onclick="openEditModal()"></i>
+                        <?php endif; ?>
+                    </h1>
                     <div style="font-size: 13px; opacity: 0.8; margin-bottom: 5px;">
                         Code: <strong><?php echo $code_sub; ?></strong>
                     </div>
@@ -396,39 +434,22 @@ $preHistData = [
             <div class="satisfaction-stack">
                 <div class="stat-card-small">
                     <div class="sat-left">
-                        <div class="sat-icon-box" style="background:#e3f2fd; color:#1976d2;">
-                            <i data-lucide="book"></i>
-                        </div>
-                        <div class="sat-text">
-                            <h5>Subject</h5>
-                            <p>Satisfaction</p>
-                        </div>
+                        <div class="sat-icon-box" style="background:#e3f2fd; color:#1976d2;"><i data-lucide="book"></i></div>
+                        <div class="sat-text"><h5>Subject</h5><p>Satisfaction</p></div>
                     </div>
                     <div class="sat-value"><?php echo $sat_subject; ?></div>
                 </div>
-
                 <div class="stat-card-small">
                     <div class="sat-left">
-                        <div class="sat-icon-box" style="background:#e8f5e9; color:#2e7d32;">
-                            <i data-lucide="user-check"></i>
-                        </div>
-                        <div class="sat-text">
-                            <h5>Instructor</h5>
-                            <p>Rating</p>
-                        </div>
+                        <div class="sat-icon-box" style="background:#e8f5e9; color:#2e7d32;"><i data-lucide="user-check"></i></div>
+                        <div class="sat-text"><h5>Instructor</h5><p>Rating</p></div>
                     </div>
                     <div class="sat-value"><?php echo $sat_instructor; ?></div>
                 </div>
-
                 <div class="stat-card-small">
                     <div class="sat-left">
-                        <div class="sat-icon-box" style="background:#fff3e0; color:#f57c00;">
-                            <i data-lucide="building-2"></i>
-                        </div>
-                        <div class="sat-text">
-                            <h5>Facilities</h5>
-                            <p>Infrastructure</p>
-                        </div>
+                        <div class="sat-icon-box" style="background:#fff3e0; color:#f57c00;"><i data-lucide="building-2"></i></div>
+                        <div class="sat-text"><h5>Facilities</h5><p>Infrastructure</p></div>
                     </div>
                     <div class="sat-value"><?php echo $sat_infras; ?></div>
                 </div>
@@ -468,7 +489,7 @@ $preHistData = [
                 <div class="table-title">Full Participant List</div>
                 <div class="table-actions">
                     <div class="search-box">
-                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
+                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
                         <input type="text" id="searchInput" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
                     <a href="export_report.php?id=<?php echo $id_session; ?>" id="exportBtn" class="btn-export">
@@ -476,55 +497,100 @@ $preHistData = [
                     </a>
                 </div>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Index</th>
-                        <th>Name</th>
-                        <th>BU</th>
-                        <th>Function</th>
-                        <th>Pre-Test</th>
-                        <th>Post-Test</th>
-                        <th>Improvement</th>
-                    </tr>
-                </thead>
-                <tbody id="participantTableBody">
-                    <?php if($participants->num_rows > 0): ?>
-                        <?php while($p = $participants->fetch_assoc()): 
-                            $improvement = $p['post'] - $p['pre'];
-                            $impSign = ($improvement > 0) ? '+' : '';
-                            $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
-                            $initials = strtoupper(substr($p['nama_karyawan'], 0, 1) . substr(explode(' ', $p['nama_karyawan'])[1] ?? '', 0, 1));
-                        ?>
+            <div class="table-responsive">
+                <table>
+                    <thead>
                         <tr>
-                            <td><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
-                            <td>
-                                <div class="user-cell">
-                                    <div class="user-avatar"><?php echo $initials; ?></div> 
-                                    <?php echo htmlspecialchars($p['nama_karyawan']); ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($p['nama_bu']); ?></td>
-                            <td><?php echo htmlspecialchars($p['func_n1']); ?></td>
-                            <td><?php echo $p['pre']; ?></td>
-                            <td><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
-                            <td><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
+                            <th>Index</th>
+                            <th>Name</th>
+                            <th>BU</th>
+                            <th>Function</th>
+                            <th style="text-align:center;">Pre-Test</th>
+                            <th style="text-align:center;">Post-Test</th>
+                            <th style="text-align:center;">Improvement</th>
                         </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr><td colspan="7" style="text-align:center; padding: 20px; color:#888;">No participants found.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody id="participantTableBody">
+                        <?php if($participants->num_rows > 0): ?>
+                            <?php while($p = $participants->fetch_assoc()): 
+                                $improvement = $p['post'] - $p['pre'];
+                                $impSign = ($improvement > 0) ? '+' : '';
+                                $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
+                                $initials = strtoupper(substr($p['nama_karyawan'], 0, 1) . substr(explode(' ', $p['nama_karyawan'])[1] ?? '', 0, 1));
+                            ?>
+                            <tr>
+                                <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
+                                <td>
+                                    <div class="user-cell">
+                                        <div class="user-avatar"><?php echo $initials; ?></div> 
+                                        <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($p['nama_karyawan']); ?></span>
+                                    </div>
+                                </td>
+                                <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['nama_bu']); ?></span></td>
+                                <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['func_n1']); ?></span></td>
+                                <td style="text-align:center; color:#888;"><?php echo $p['pre']; ?></td>
+                                <td style="text-align:center;"><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
+                                <td style="text-align:center;"><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No participants found.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
 
             <div class="pagination-container" id="paginationContainer">
-                <div>Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
+                <div>Showing <?php echo ($total_rows > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
                 <div class="pagination-controls">
-                    <?php if($page > 1): $prev = $page - 1; echo "<a href='?id=$id_session&page=$prev&search=$search' class='page-btn'>&lt;</a>"; endif; ?>
-                    <a href="#" class="page-btn active"><?php echo $page; ?></a>
-                    <?php if($page < $total_pages): $next = $page + 1; echo "<a href='?id=$id_session&page=$next&search=$search' class='page-btn'>&gt;</a>"; endif; ?>
+                    <?php if($page > 1): $prev = $page - 1; ?>
+                        <a href="#" onclick="changePage(<?php echo $prev; ?>); return false;" class="btn-next" style="transform: rotate(180deg); display:inline-block;">
+                            <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+                        </a>
+                    <?php endif; ?>
+                    
+                    <?php for($i=1; $i<=$total_pages; $i++): ?>
+                        <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
+                            <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
+                        <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
+                            <span class="dots">...</span>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+
+                    <?php if($page < $total_pages): $next = $page + 1; ?>
+                        <a href="#" onclick="changePage(<?php echo $next; ?>); return false;" class="btn-next">
+                            Next <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="editModalOverlay" onclick="closeEditModal(event)">
+        <div class="modal" id="editModal">
+            <div class="modal-header">
+                <div class="modal-title">Edit Training Details</div>
+                <i data-lucide="x" class="modal-close" onclick="closeEditModal()"></i>
+            </div>
+            <form method="POST">
+                <div class="form-group">
+                    <label>Training Title</label>
+                    <input type="text" name="title" value="<?php echo $training_name; ?>" required>
+                </div>
+                <div class="form-group">
+                    <label>Sub Code</label>
+                    <input type="text" name="code" value="<?php echo $code_sub; ?>" required>
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" name="date" value="<?php echo $training_date_raw; ?>" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" name="update_training" class="btn-save">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -532,33 +598,38 @@ $preHistData = [
     <script>
         lucide.createIcons();
 
+        // --- MODAL LOGIC ---
+        function openEditModal() {
+            document.getElementById('editModalOverlay').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('editModal').classList.add('open');
+            }, 10);
+        }
+
+        function closeEditModal(e) {
+            if (e && e.target !== e.currentTarget) return; // Prevent closing if clicking inside modal
+            document.getElementById('editModal').classList.remove('open');
+            setTimeout(() => {
+                document.getElementById('editModalOverlay').style.display = 'none';
+            }, 300);
+        }
+
         // --- CHART CONFIGURATION ---
         const commonOptions = {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
-                tooltip: {
-                    titleFont: { family: 'Poppins' },
-                    bodyFont: { family: 'Poppins' }
-                }
+                tooltip: { titleFont: { family: 'Poppins' }, bodyFont: { family: 'Poppins' } }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { borderDash: [5, 5], color: '#f0f0f0' },
-                    ticks: { font: { family: 'Poppins' }, precision: 0 }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { font: { family: 'Poppins' } }
-                }
+                y: { beginAtZero: true, grid: { borderDash: [5, 5], color: '#f0f0f0' }, ticks: { font: { family: 'Poppins' }, precision: 0 } },
+                x: { grid: { display: false }, ticks: { font: { family: 'Poppins' } } }
             }
         };
 
         const labels = <?php echo json_encode($histLabels); ?>;
 
-        // 1. Pre-Test Chart
         new Chart(document.getElementById('preHistogram'), {
             type: 'bar',
             data: {
@@ -566,7 +637,7 @@ $preHistData = [
                 datasets: [{
                     label: 'Participants',
                     data: <?php echo json_encode($preHistData); ?>,
-                    backgroundColor: '#FF9A02', // Orange for Pre-Test
+                    backgroundColor: '#FF9A02',
                     borderRadius: 5,
                     barPercentage: 0.8
                 }]
@@ -574,7 +645,6 @@ $preHistData = [
             options: commonOptions
         });
 
-        // 2. Post-Test Chart
         new Chart(document.getElementById('postHistogram'), {
             type: 'bar',
             data: {
@@ -582,7 +652,7 @@ $preHistData = [
                 datasets: [{
                     label: 'Participants',
                     data: <?php echo json_encode($postHistData); ?>,
-                    backgroundColor: '#197B40', // Green for Post-Test
+                    backgroundColor: '#197B40',
                     borderRadius: 5,
                     barPercentage: 0.8
                 }]
@@ -597,6 +667,24 @@ $preHistData = [
         const exportBtn = document.getElementById('exportBtn');
         const sessionId = "<?php echo $id_session; ?>";
 
+        function changePage(page) {
+            const query = searchInput.value;
+            fetchData(query, page);
+        }
+
+        function fetchData(query, page) {
+            exportBtn.href = `export_session.php?id=${sessionId}&search=${encodeURIComponent(query)}`;
+            
+            fetch(`?id=${sessionId}&ajax_search=${encodeURIComponent(query)}&page=${page}`)
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = data.table;
+                    paginationContainer.innerHTML = data.pagination;
+                    lucide.createIcons();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
         function debounce(func, wait) {
             let timeout;
             return function(...args) {
@@ -607,17 +695,7 @@ $preHistData = [
         }
 
         const performSearch = debounce(function() {
-            const query = searchInput.value;
-            exportBtn.href = `export_session.php?id=${sessionId}&search=${encodeURIComponent(query)}`;
-
-            fetch(`?id=${sessionId}&ajax_search=${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(data => {
-                    tableBody.innerHTML = data.table;
-                    paginationContainer.innerHTML = data.pagination;
-                    lucide.createIcons();
-                })
-                .catch(error => console.error('Error:', error));
+            fetchData(searchInput.value, 1);
         }, 300);
 
         searchInput.addEventListener('input', performSearch);
