@@ -171,10 +171,10 @@ $join_sql = "
 $res_hours = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql);
 $total_hours_raw = $res_hours->fetch_assoc()['total'] ?? 0;
 
-$res_offline = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND ts.method LIKE '%Inclass%'");
+$res_offline = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Inclass%')");
 $hours_offline_raw = $res_offline->fetch_assoc()['total'] ?? 0;
 
-$res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Hybrid%' OR ts.method LIKE '%Webinar%')");
+$res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Hybrid%' OR ts.method LIKE '%Webinar%' OR ts.method LIKE '%Self-paced%')");
 $hours_online_raw = $res_online->fetch_assoc()['total'] ?? 0;
 
 $res_part = $conn->query("SELECT COUNT(s.id_score) as total " . $join_sql);
@@ -240,6 +240,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
+        /* --- RESET & BASIC --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
 
@@ -253,30 +254,39 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
-        /* NAVBAR */
+        /* --- NAVBAR --- */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
-            margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
+            margin: -20px -40px 30px -40px; /* Negative margin to span full width */
+            padding-left: 70px; padding-right: 70px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
             position: sticky; top: -20px; z-index: 1000; 
         }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
-        .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
+        .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; white-space: nowrap; }
         .nav-links a:hover { opacity: 1; }
         .nav-links a.active { background: white; color: #197B40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
         .nav-right { display: flex; align-items: center; gap: 20px; }
         .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
-        .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+        .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; flex-shrink: 0; }
         .btn-signout {
             background-color: #d32f2f; color: white !important; text-decoration: none;
             font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px;
-            transition: background 0.3s; opacity: 1 !important;
+            transition: background 0.3s; opacity: 1 !important; white-space: nowrap;
         }
         .btn-signout:hover { background-color: #b71c1c; }
 
-        /* SUMMARY CARDS */
-        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 25px; width: 100%; flex-shrink: 0; }
+        /* --- SUMMARY CARDS --- */
+        .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 20px; 
+            margin-bottom: 25px; 
+            width: 100%; 
+            flex-shrink: 0; 
+        }
         .summary-card {
             background: white; border-radius: 15px; padding: 20px 25px; display: flex; align-items: center; gap: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-left: 5px solid #197B40; cursor: pointer; 
@@ -291,13 +301,13 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         }
         .s-close:hover { background: #ffcc80; transform: scale(1.1); }
         .summary-card.has-filter .s-close { display: flex; }
-        .s-icon { color: #888; display: flex; align-items: center; transition: color 0.3s; }
+        .s-icon { color: #888; display: flex; align-items: center; transition: color 0.3s; flex-shrink: 0; }
         .summary-card.has-filter .s-icon { color: #FF9A02; }
         .s-content { display: flex; flex-direction: column; white-space: nowrap; overflow: hidden; width: 100%; }
         .s-label { font-size: 11px; color: #999; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px; }
         .s-value { font-size: 15px; font-weight: 700; color: #333; overflow: hidden; text-overflow: ellipsis; }
 
-        /* HERO CARD */
+        /* --- HERO CARD --- */
         .hero-card {
             background-color: #0e5e45; background-image: linear-gradient(135deg, #117054 0%, #0a4d38 100%);
             border-radius: 20px; padding: 30px 50px; color: white; display: flex; align-items: center; justify-content: space-between;
@@ -309,7 +319,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             background: rgba(255,255,255,0.05); border-radius: 50%; pointer-events: none; 
         }
         .hero-left-wrapper { display: flex; align-items: center; margin-right: auto; position: static; }
-        .hero-illustration-img { position: absolute; height: 150px; width: auto; left: 0px; z-index: 1; }
+        .hero-illustration-img { position: absolute; height: 150px; width: auto; left: 0px; z-index: 1; pointer-events: none; }
         .hero-main { display: flex; flex-direction: column; gap: 5px; white-space: nowrap; position: relative; z-index: 2; margin-left: 120px; }
         .hero-number { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
         .hero-label { font-size: 13px; opacity: 0.85; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; }
@@ -322,49 +332,39 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         .b-text h4 { font-size: 12px; font-weight: 400; opacity: 0.85; margin-bottom: 2px; white-space: nowrap; }
         .b-text p { font-size: 18px; font-weight: 700; white-space: nowrap; }
 
-        /* TRAINING SECTION - Updated Table Style & Compact Header */
+        /* --- TRAINING SECTION --- */
         .training-section {
             background: white; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column; flex-grow: 1; min-height: 500px; overflow: hidden;
+            display: flex; flex-direction: column; flex-grow: 1; min-height: 400px; overflow: hidden;
         }
         .section-header {
-            background-color: #197B40; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+            background-color: #197B40; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; gap: 15px;
         }
-        .section-title { font-size: 16px; font-weight: 600; color: white; }
-        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .section-title { font-size: 16px; font-weight: 600; color: white; white-space: nowrap; }
+        .header-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
         
-        /* Compact Search Box */
         .search-box {
-            background: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px;
+            background: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; transition: width 0.3s;
         }
-        .search-box img { width: 16px; height: 16px; margin-right: 8px; }
+        .search-box img { width: 16px; height: 16px; margin-right: 8px; flex-shrink: 0; }
         .search-box input { border: none; outline: none; background: transparent; width: 100%; font-size: 13px; color: #333; height: 100%; }
         
-        /* Compact Filter Button */
         .btn-filter {
             height: 35px; padding: 0 15px; border: none; border-radius: 50px; background: white; color: #197B40; 
-            font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;
+            font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; white-space: nowrap;
         }
         .btn-filter:hover { background-color: #f0fdf4; }
 
-        /* TABLE STYLES */
-        .table-responsive { flex-grow: 1; overflow-y: auto; padding: 0; }
-        table { width: 100%; border-collapse: collapse; }
+        /* --- TABLE STYLES --- */
+        .table-responsive { flex-grow: 1; overflow: auto; padding: 0; width: 100%; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; /* Ensure table doesn't get too squashed */ }
         
         th { 
-            text-align: left; 
-            padding: 15px 30px; 
-            font-size: 12px; 
-            color: #555; 
-            font-weight: 700; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px;
-            background: white; 
-            border-bottom: 2px solid #eee;
-            position: sticky; top: 0; z-index: 10; 
+            text-align: left; padding: 15px 20px; font-size: 12px; color: #555; 
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+            background: white; border-bottom: 2px solid #eee; position: sticky; top: 0; z-index: 10; 
         }
-        
-        td { padding: 15px 30px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        td { padding: 15px 20px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         tr:hover { background-color: #fafbfc; }
         tr.selected { background-color: #e8f5e9; }
 
@@ -372,15 +372,16 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
         .training-cell .icon-box { 
             background: #e8f5e9; color: #197B40; width: 40px; height: 40px; 
             border-radius: 8px; display: flex; align-items: center; justify-content: center; 
+            flex-shrink: 0; 
         }
         .training-name-text { font-weight: 700; line-height: 1.2; font-size: 14px; }
         
         /* BADGES */
-        .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
+        .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; white-space: nowrap; }
         .method-online { background: #E0F2F1; color: #00695C; border: 1px solid rgba(0, 105, 92, 0.1); }
         .method-inclass { background: #FCE4EC; color: #C2185B; border: 1px solid rgba(194, 24, 91, 0.1); }
 
-        /* DRAWER STYLES */
+        /* --- DRAWER STYLES --- */
         .filter-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none;
@@ -415,12 +416,6 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             border-radius: 50px; font-size: 13px; outline: none; color: #333; font-family: 'Poppins', sans-serif;
             background-color: #fff; cursor: pointer; transition: all 0.2s; position: relative;
         }
-        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; color: transparent; background: transparent; cursor: pointer;
-        }
-        .date-input-wrapper input[type="date"]:hover, .date-input-wrapper input[type="date"]:focus {
-            border-color: #197B40; box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1);
-        }
         .date-icon { 
             position: absolute; left: 15px; top: 50%; transform: translateY(-50%); 
             color: #197B40; width: 16px; pointer-events: none; z-index: 1; 
@@ -442,12 +437,75 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
             flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; 
             transition: background 0.2s; overflow: visible;
         }
-        .btn-apply span { position: relative; z-index: 2; }
         .btn-apply svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
         .btn-apply rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #FF9A02; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
         .btn-apply:hover { background: #145a32; }
         .btn-apply:hover rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
         @keyframes snakeBorder { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
+
+        /* ========================================= */
+        /* --- RESPONSIVE MEDIA QUERIES --- */
+        /* ========================================= */
+
+        /* 1. Tablet & Smaller Laptops (Max 1024px) */
+        @media (max-width: 1024px) {
+            .main-wrapper { padding: 20px; }
+            .navbar { margin: -20px -20px 20px -20px; padding-left: 30px; padding-right: 30px; }
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+            .hero-card { padding: 30px; }
+            .hero-main { margin-left: 100px; }
+        }
+
+        /* 2. Mobile Landscape & Tablets (Max 768px) */
+        @media (max-width: 768px) {
+            .main-wrapper { padding: 15px; height: 100vh; }
+            
+            /* Compact Nav */
+            .navbar { 
+                margin: -15px -15px 15px -15px; padding: 10px 20px; height: auto;
+                flex-wrap: wrap; gap: 10px; border-radius: 0 0 20px 20px;
+            }
+            .logo-section { order: 1; }
+            .nav-right { order: 2; margin-left: auto; }
+            .nav-links {
+                order: 3; width: 100%; overflow-x: auto; white-space: nowrap; 
+                padding-bottom: 5px; gap: 20px;
+                /* Hide scrollbar for cleaner look */
+                -ms-overflow-style: none; scrollbar-width: none; 
+            }
+            .nav-links::-webkit-scrollbar { display: none; }
+            
+            .summary-grid { grid-template-columns: 1fr; gap: 15px; }
+            
+            /* Responsive Hero Card */
+            .hero-card { flex-direction: column; align-items: center; padding: 25px; height: auto; text-align: center; }
+            .hero-left-wrapper { margin-right: 0; margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; }
+            .hero-illustration-img { position: static; height: 80px; margin-bottom: 10px; }
+            .hero-main { margin-left: 0; align-items: center; }
+            .hero-breakdown { 
+                border-left: none; border-top: 1px solid rgba(255,255,255,0.2); 
+                padding-left: 0; padding-top: 20px; width: 100%; 
+                flex-direction: row; justify-content: space-between; flex-wrap: wrap;
+            }
+            .breakdown-item { flex: 1; min-width: 120px; justify-content: center; }
+            .hero-card::after { width: 200px; height: 200px; top: -100px; right: -50px; }
+        }
+
+        /* 3. Mobile Phones (Max 480px) */
+        @media (max-width: 480px) {
+            .summary-card { padding: 15px; }
+            .section-header { flex-direction: column; align-items: stretch; gap: 15px; }
+            .header-actions { flex-direction: column; width: 100%; }
+            .search-box { width: 100%; }
+            .btn-filter { width: 100%; justify-content: center; }
+            
+            /* Filter Drawer Full Width on Small Screens */
+            .filter-drawer { width: 90%; right: -100%; }
+            .drawer-open .filter-drawer { right: 5%; }
+            
+            .hero-breakdown { flex-direction: column; align-items: flex-start; gap: 15px; }
+            .breakdown-item { width: 100%; justify-content: flex-start; }
+        }
     </style>
 </head>
 <body id="body">

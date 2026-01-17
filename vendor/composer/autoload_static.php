@@ -18,6 +18,10 @@ class ComposerStaticInit62e10e6c8df9afc192311b196c75bb33
             'Psr\\Http\\Client\\' => 16,
             'PhpOffice\\PhpSpreadsheet\\' => 25,
         ),
+        'O' => 
+        array (
+            'OpenSpout\\' => 10,
+        ),
         'M' => 
         array (
             'Matrix\\' => 7,
@@ -50,6 +54,10 @@ class ComposerStaticInit62e10e6c8df9afc192311b196c75bb33
         'PhpOffice\\PhpSpreadsheet\\' => 
         array (
             0 => __DIR__ . '/..' . '/phpoffice/phpspreadsheet/src/PhpSpreadsheet',
+        ),
+        'OpenSpout\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/openspout/openspout/src',
         ),
         'Matrix\\' => 
         array (
