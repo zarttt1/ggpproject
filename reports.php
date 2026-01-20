@@ -34,10 +34,21 @@ function formatDateRange($start_date, $end_date) {
 // --- GET PARAMETERS ---
 $search = $_GET['search'] ?? '';
 $filter_category = $_GET['category'] ?? 'All Categories'; 
+$filter_type = $_GET['type'] ?? 'All Types'; 
 $filter_method = $_GET['method'] ?? 'All Methods';
 $filter_code = $_GET['code'] ?? 'All Codes'; 
 $start_date = $_GET['start'] ?? '';
 $end_date = $_GET['end'] ?? '';
+
+// Check active filters for button styling
+$has_active_filters = (
+    $filter_category !== 'All Categories' || 
+    $filter_type !== 'All Types' || 
+    $filter_method !== 'All Methods' || 
+    $filter_code !== 'All Codes' || 
+    !empty($start_date) || 
+    !empty($end_date)
+);
 
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10;
@@ -52,15 +63,23 @@ if (isset($_GET['ajax_search'])) {
         $where_ajax[] = "(t.nama_training LIKE '%$safe_search%' OR ts.code_sub LIKE '%$safe_search%')";
     }
     
-    // Apply filters in AJAX too
     if (isset($_GET['category']) && $_GET['category'] !== 'All Categories') {
         $where_ajax[] = "t.jenis = '" . $conn->real_escape_string($_GET['category']) . "'";
+    }
+    if (isset($_GET['type']) && $_GET['type'] !== 'All Types') {
+        $where_ajax[] = "t.type = '" . $conn->real_escape_string($_GET['type']) . "'";
     }
     if (isset($_GET['method']) && $_GET['method'] !== 'All Methods') {
         $where_ajax[] = "ts.method = '" . $conn->real_escape_string($_GET['method']) . "'";
     }
     if (isset($_GET['code']) && $_GET['code'] !== 'All Codes') {
         $where_ajax[] = "ts.code_sub = '" . $conn->real_escape_string($_GET['code']) . "'";
+    }
+    if (isset($_GET['start']) && !empty($_GET['start'])) {
+        $where_ajax[] = "ts.date_start >= '" . $conn->real_escape_string($_GET['start']) . "'";
+    }
+    if (isset($_GET['end']) && !empty($_GET['end'])) {
+        $where_ajax[] = "ts.date_start <= '" . $conn->real_escape_string($_GET['end']) . "'";
     }
     
     $where_sql_ajax = implode(' AND ', $where_ajax);
@@ -69,7 +88,6 @@ if (isset($_GET['ajax_search'])) {
     $total_records = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_records / $limit);
     
-    // FETCH DATA
     $data_sql = "
         SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
                COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
@@ -86,7 +104,6 @@ if (isset($_GET['ajax_search'])) {
     ob_start();
     if ($result->num_rows > 0) {
         while($row = $result->fetch_assoc()) {
-            // Null coalescing for safe output
             $category = $row['category'] ?? '';
             $method = $row['method'] ?? '';
             $training_type = $row['training_type'] ?? '';
@@ -128,7 +145,6 @@ if (isset($_GET['ajax_search'])) {
     }
     $table_html = ob_get_clean();
 
-    // Pagination HTML
     ob_start();
     ?>
     <div>Showing <?php echo ($total_records > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records</div>
@@ -159,6 +175,7 @@ if (!empty($search)) {
     $where_clauses[] = "(t.nama_training LIKE '%" . $conn->real_escape_string($search) . "%' OR ts.code_sub LIKE '%" . $conn->real_escape_string($search) . "%')";
 }
 if ($filter_category !== 'All Categories') $where_clauses[] = "t.jenis = '" . $conn->real_escape_string($filter_category) . "'";
+if ($filter_type !== 'All Types') $where_clauses[] = "t.type = '" . $conn->real_escape_string($filter_type) . "'";
 if ($filter_method !== 'All Methods') $where_clauses[] = "ts.method = '" . $conn->real_escape_string($filter_method) . "'";
 if ($filter_code !== 'All Codes') $where_clauses[] = "ts.code_sub = '" . $conn->real_escape_string($filter_code) . "'";
 
@@ -191,6 +208,7 @@ $data_sql = "
 $result = $conn->query($data_sql);
 
 $categories_opt = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis");
+$types_opt = $conn->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type");
 $methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method");
 $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub");
 ?>
@@ -203,132 +221,107 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="icons/icon.png">
     <style>
-        /* --- GLOBAL STYLES --- */
+        /* --- RESET & BASIC --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
-        
-        body { 
-            background-color: #117054; 
-            padding: 0; 
-            margin: 0; 
-            min-height: 100vh;
-            overflow-y: auto;
+        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
+
+        .main-wrapper {
+            background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto;
+            transition: all 0.4s cubic-bezier(0.32, 1, 0.23, 1); transform-origin: center left;
+            width: 100%; position: relative; display: flex; flex-direction: column;
+        }
+        .drawer-open .main-wrapper {
+            transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto;
+            box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
-        .main-wrapper { 
-            background-color: #f3f4f7; 
-            padding: 20px 40px; 
-            min-height: 100vh;
-            width: 100%; 
-            position: relative; 
-            display: flex; 
-            flex-direction: column; 
-            transition: transform 0.3s, border-radius 0.3s;
+        /* --- NAVBAR --- */
+        .navbar {
+            background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
+            display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
+            margin: -20px -40px 30px -40px; padding-left: 70px; padding-right: 70px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
+            position: sticky; top: -20px; z-index: 1000; 
         }
-
-        .drawer-open .main-wrapper { transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto; box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden; }
-        
-        .navbar { background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; display: flex; align-items: center; padding: 0 30px; justify-content: space-between; margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
-        .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; }
+        .nav-links a { color: white; text-decoration: none; font-size: 14px; font-weight: 600; opacity: 0.8; transition: 0.3s; white-space: nowrap; }
         .nav-links a:hover { opacity: 1; }
         .nav-links a.active { background: white; color: #197B40; padding: 8px 20px; border-radius: 20px; opacity: 1; }
         .nav-right { display: flex; align-items: center; gap: 20px; }
         .user-profile { display: flex; align-items: center; gap: 12px; color: white; }
-        .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
-        .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
-        .btn-signout:hover { background-color: #b71c1c; }
-        
-        /* CARD */
-        .table-card { 
-            background: white; 
-            border-radius: 12px; 
-            box-shadow: 0 5px 20px rgba(0,0,0,0.03); 
-            overflow: hidden; 
-            margin-bottom: 40px; 
-            margin-top: 20px; 
-            display: flex; 
-            flex-direction: column; 
+        .avatar-circle { width: 35px; height: 35px; background-color: #FF9A02; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; flex-shrink: 0; }
+        .btn-signout {
+            background-color: #d32f2f; color: white !important; text-decoration: none;
+            font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px;
+            transition: background 0.3s; opacity: 1 !important; white-space: nowrap;
         }
+        .btn-signout:hover { background-color: #b71c1c; }
 
-        /* HEADER */
-        .table-header-strip { background-color: #197B40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
-        .table-title { font-weight: 700; font-size: 16px; margin: 0; }
-        .table-actions { display: flex; gap: 12px; align-items: center; }
+        /* --- TABLE CARD --- */
+        .table-card { 
+            background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); 
+            overflow: hidden; margin-bottom: 40px; margin-top: 20px; 
+            display: flex; flex-direction: column; flex-grow: 1;
+        }
+        .table-header-strip { 
+            background-color: #197B40; color: white; padding: 15px 25px; 
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; gap: 15px;
+        }
+        .table-title { font-weight: 700; font-size: 16px; margin: 0; white-space: nowrap; }
+        .table-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
         
-        /* SEARCH BAR */
-        .search-box { background-color: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; }
-        .search-box img { width: 16px; height: 16px; margin-right: 8px; }
+        .search-box { 
+            background-color: white; border-radius: 50px; height: 35px; width: 250px; 
+            display: flex; align-items: center; padding: 0 15px; transition: width 0.3s;
+        }
+        .search-box img { width: 16px; height: 16px; margin-right: 8px; flex-shrink: 0; }
         .search-box input { border: none; background: transparent; outline: none; height: 100%; flex: 1; padding-left: 10px; font-size: 13px; color: #333; }
         
-        /* BUTTONS */
-        .btn-action-small { height: 35px; padding: 0 15px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; text-decoration: none; transition: 0.2s; }
-        .btn-action-small:hover { background-color: #f0fdf4; }
-        
-        .table-responsive { flex-grow: 1; overflow-y: auto; }
-
-        /* TABLE */
-        table { width: 100%; border-collapse: collapse; }
-        
-        th { 
-            text-align: left; 
-            padding: 15px 30px; 
-            font-size: 12px; 
-            color: #555; 
-            font-weight: 700; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px;
-            background: white; 
-            border-bottom: 2px solid #eee;
-            position: sticky; top: 0; z-index: 10; 
+        .btn-action-small { 
+            height: 35px; padding: 0 15px; border: none; border-radius: 50px; 
+            background: white; color: #197B40; font-weight: 600; font-size: 13px; 
+            cursor: pointer; display: flex; align-items: center; gap: 6px; 
+            text-decoration: none; transition: 0.2s; white-space: nowrap;
         }
+        .btn-action-small:hover { background-color: #f0fdf4; }
+        .btn-action-small.active-filter { background-color: #fffcf5; color: #e65100; border: 1px solid #FF9A02; }
+        .btn-action-small.active-filter:hover { background-color: #fff5e0; }
         
+        .table-responsive { flex-grow: 1; overflow-y: auto; width: 100%; }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        th { 
+            text-align: left; padding: 15px 30px; font-size: 12px; color: #555; 
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+            background: white; border-bottom: 2px solid #eee; position: sticky; top: 0; z-index: 10; 
+        }
         td { padding: 15px 30px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
-        
         td:not(:first-child) { white-space: nowrap; }
+        tr:hover { background-color: #fafbfc; }
 
         .training-cell { display: flex; align-items: center; gap: 15px; }
         .training-cell .icon-box { 
             background: #e8f5e9; color: #197B40; width: 40px; height: 40px; 
-            border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; 
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; min-width: 40px;
         }
         .training-name-text { font-weight: 700; line-height: 1.2; font-size: 14px; }
         
-        /* BADGES */
         .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
-        
-        /* Category Colors */
         .type-tech { background: #E3F2FD; color: #1565C0; border: 1px solid rgba(21, 101, 192, 0.1); }
         .type-soft { background: #FFF3E0; color: #EF6C00; border: 1px solid rgba(239, 108, 0, 0.1); }
         .type-default { background: #F5F5F5; color: #616161; }
-        
-        /* New Type Column Color */
         .type-info { background: #F3E5F5; color: #7B1FA2; border: 1px solid rgba(123, 31, 162, 0.1); }
-
-        /* Method Colors */
         .method-online { background: #E0F2F1; color: #00695C; border: 1px solid rgba(0, 105, 92, 0.1); }
         .method-inclass { background: #FCE4EC; color: #C2185B; border: 1px solid rgba(194, 24, 91, 0.1); }
-
         .score { color: #197B40; font-weight: bold; }
         
-        /* ACTION BUTTON */
         .btn-view { 
-            position: relative; 
-            background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%); 
-            color: white; 
-            border: none; 
-            padding: 10px 14px; 
-            border-radius: 25px; 
-            font-size: 12px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            display: inline-flex; 
-            align-items: center; 
-            justify-content: center; 
-            gap: 5px; 
-            overflow: visible; 
-            transition: transform 0.2s; 
-            white-space: nowrap; 
+            position: relative; background: linear-gradient(90deg, #FF9A02 0%, #FED404 100%); 
+            color: white; border: none; padding: 10px 14px; border-radius: 25px; 
+            font-size: 12px; font-weight: bold; cursor: pointer; display: inline-flex; 
+            align-items: center; justify-content: center; gap: 5px; overflow: visible; 
+            transition: transform 0.2s; white-space: nowrap; 
         }
         .btn-view:active { transform: scale(0.98); }
         .btn-view span { position: relative; z-index: 2; }
@@ -337,30 +330,69 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         .btn-view:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
         @keyframes snakeMove { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
         
-        /* PAGINATION */
-        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; border-top: 1px solid #f9f9f9; }
+        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; border-top: 1px solid #f9f9f9; flex-shrink: 0; }
         .pagination-controls { display: flex; align-items: center; gap: 8px; }
         .page-num { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; text-decoration: none; color: #4a4a4a; font-weight: 500; }
         .page-num.active { background-color: #197B40; color: white; }
         .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
 
-        /* --- FILTER DRAWER STYLES --- */
         .filter-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
-        .filter-drawer { position: fixed; top: 20px; bottom: 20px; right: -400px; width: 380px; background: white; z-index: 1001; box-shadow: -10px 0 30px rgba(0,0,0,0.15); transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1); display: flex; flex-direction: column; border-radius: 35px; overflow: hidden; }
+        .filter-drawer { position: fixed; top: 20px; bottom: 20px; right: -400px; width: 380px; background: white; z-index: 1001; box-shadow: -10px 0 30px rgba(0,0,0,0.15); transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1); display: flex; flex-direction: column; border-radius: 35px; }
         .drawer-open .filter-overlay { display: block; opacity: 1; pointer-events: auto; }
         .drawer-open .filter-drawer { right: 20px; }
-        .drawer-header { background-color: #197B40; color: white; padding: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .drawer-header { background-color: #197B40; color: white; padding: 25px; display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 35px; border-top-right-radius: 35px; }
+        .drawer-header h4 { font-size: 16px; font-weight: 600; }
         .drawer-content { padding: 25px; overflow-y: auto; flex-grow: 1; }
-        .filter-group { margin-bottom: 25px; }
-        .filter-group label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 10px; }
-        .filter-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 12px; outline: none; font-size: 13px; font-family: 'Poppins', sans-serif; }
-        .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; }
-        .btn-reset { background: #f3f4f7; color: #666; border: none; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; }
+        
+        .filter-group { margin-bottom: 20px; }
+        .filter-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
+        .date-row { display: flex; gap: 10px; }
+        
+        .date-input-wrapper { position: relative; flex: 1; }
+        .date-input-wrapper input[type="date"] { 
+            width: 100%; padding: 10px 15px 10px 40px; border: 1px solid #e0e0e0; 
+            border-radius: 50px; font-size: 13px; outline: none; color: #333; font-family: 'Poppins', sans-serif;
+            background-color: #fff; cursor: pointer; transition: all 0.2s; position: relative;
+        }
+        /* FIX FOR DATE PICKER: Make full button clickable & hide default icon */
+        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
+            width: 100%; height: 100%; color: transparent; background: transparent; cursor: pointer;
+        }
+        .date-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #197B40; width: 16px; pointer-events: none; z-index: 1; }
+
+        .filter-group select { width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 8px; outline: none; font-size: 13px; color: #333; appearance: none; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>') no-repeat right 12px center; }
+        
+        .drawer-footer { padding: 20px 25px; border-top: 1px solid #eee; display: flex; gap: 15px; border-bottom-left-radius: 35px; border-bottom-right-radius: 35px; }
+        .btn-reset { background: #fff; border: 1px solid #ddd; color: #666; padding: 12px; border-radius: 50px; flex: 1; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-reset:hover { background: #f9f9f9; }
         .btn-apply { position: relative; background: #197B40; color: white; border: none; padding: 12px 24px; border-radius: 25px; flex: 1; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; overflow: visible; }
         .btn-apply svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
         .btn-apply rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #FF9A02; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
         .btn-apply:hover { background: #145a32; }
-        .btn-apply:hover rect { opacity: 1; animation: snakeMove 2s linear infinite; }
+        .btn-apply:hover rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
+        @keyframes snakeBorder { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
+
+        @media (max-width: 1024px) {
+            .main-wrapper { padding: 20px; }
+            .navbar { margin: -20px -20px 20px -20px; padding-left: 30px; padding-right: 30px; }
+        }
+        @media (max-width: 768px) {
+            .main-wrapper { padding: 15px; height: 100vh; }
+            .navbar { margin: -15px -15px 15px -15px; padding: 10px 20px; height: auto; flex-wrap: wrap; gap: 10px; border-radius: 0 0 20px 20px; }
+            .logo-section { order: 1; }
+            .nav-right { order: 2; margin-left: auto; }
+            .nav-links { order: 3; width: 100%; overflow-x: auto; white-space: nowrap; padding-bottom: 5px; gap: 20px; -ms-overflow-style: none; scrollbar-width: none; }
+            .nav-links::-webkit-scrollbar { display: none; }
+        }
+        @media (max-width: 480px) {
+            .table-header-strip { flex-direction: column; align-items: stretch; gap: 15px; }
+            .table-actions { flex-direction: column; width: 100%; }
+            .search-box { width: 100%; }
+            .btn-action-small { width: 100%; justify-content: center; }
+            .filter-drawer { width: 90%; right: -100%; }
+            .drawer-open .filter-drawer { right: 5%; }
+        }
     </style>
 </head>
 <body id="body">
@@ -402,7 +434,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                         <input type="text" id="liveSearchInput" placeholder="Search training..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
                     
-                    <button class="btn-action-small" onclick="toggleDrawer()">
+                    <button class="btn-action-small <?php echo $has_active_filters ? 'active-filter' : ''; ?>" onclick="toggleDrawer()">
                         <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Filter">
                         Filters
                     </button>
@@ -427,11 +459,10 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                     <tbody id="tableBody">
                         <?php if ($result->num_rows > 0): ?>
                             <?php while($row = $result->fetch_assoc()): 
-                                // Safe output handling for potential NULLs
                                 $category = $row['category'] ?? '';
                                 $method = $row['method'] ?? '';
                                 $training_type = $row['training_type'] ?? '';
-
+                                
                                 $catClass = (stripos($category, 'Technical') !== false) ? 'type-tech' : ((stripos($category, 'Soft') !== false) ? 'type-soft' : 'type-default');
                                 $methodClass = (stripos($method, 'Inclass') !== false) ? 'method-inclass' : 'method-online';
                                 $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
@@ -449,13 +480,9 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                                     </div>
                                 </td>
                                 <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
-                                
                                 <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span></td>
-                                
                                 <td><span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span></td>
-                                
                                 <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span></td>
-                                
                                 <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour'] ?? '0'); ?></td>
                                 <td style="text-align:center;"><?php echo $row['participants']; ?></td>
                                 <td class="score"><?php echo $avgScore; ?></td>
@@ -468,7 +495,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                             </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <tr><td colspan="9" style="text-align:center; color:#888;">No records found.</td></tr>
+                            <tr><td colspan="9" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -502,13 +529,26 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
     </div>
 
     <div class="filter-overlay" onclick="toggleDrawer()"></div>
-    
     <div class="filter-drawer">
         <div class="drawer-header">
             <h4>Filter Options</h4>
-            <i data-lucide="x" style="cursor:pointer" onclick="toggleDrawer()"></i>
+            <i data-lucide="x" style="cursor:pointer; color: white;" onclick="toggleDrawer()"></i>
         </div>
         <div class="drawer-content">
+            <div class="filter-group">
+                <label>Date Range</label>
+                <div class="date-row">
+                    <div class="date-input-wrapper">
+                        <i data-lucide="calendar" class="date-icon"></i>
+                        <input type="date" id="startDate" value="<?php echo $start_date; ?>">
+                    </div>
+                    <div class="date-input-wrapper">
+                        <i data-lucide="calendar" class="date-icon"></i>
+                        <input type="date" id="endDate" value="<?php echo $end_date; ?>">
+                    </div>
+                </div>
+            </div>
+
             <div class="filter-group">
                 <label>Category</label>
                 <select id="filterCategory">
@@ -520,19 +560,19 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                     <?php endwhile; ?>
                 </select>
             </div>
-            
+
             <div class="filter-group">
-                <label>Sub Code</label>
-                <select id="filterCode">
-                    <option value="All Codes">All Codes</option>
-                    <?php while($c = $codes_opt->fetch_assoc()): ?>
-                        <option value="<?php echo htmlspecialchars($c['code_sub']); ?>" <?php if($filter_code == $c['code_sub']) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($c['code_sub']); ?>
+                <label>Training Type</label>
+                <select id="filterType">
+                    <option value="All Types">All Types</option>
+                    <?php while($t = $types_opt->fetch_assoc()): ?>
+                        <option value="<?php echo htmlspecialchars($t['type']); ?>" <?php if($filter_type == $t['type']) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($t['type']); ?>
                         </option>
                     <?php endwhile; ?>
                 </select>
             </div>
-
+            
             <div class="filter-group">
                 <label>Method</label>
                 <select id="filterMethod">
@@ -544,18 +584,17 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                     <?php endwhile; ?>
                 </select>
             </div>
+
             <div class="filter-group">
-                <label>Date Range</label>
-                <div class="date-row">
-                    <div class="date-input-wrapper">
-                        <input type="date" id="startDate" value="<?php echo $start_date; ?>">
-                        <i data-lucide="calendar" class="custom-date-icon"></i>
-                    </div>
-                    <div class="date-input-wrapper">
-                        <input type="date" id="endDate" value="<?php echo $end_date; ?>">
-                        <i data-lucide="calendar" class="custom-date-icon"></i>
-                    </div>
-                </div>
+                <label>Sub Code</label>
+                <select id="filterCode">
+                    <option value="All Codes">All Codes</option>
+                    <?php while($c = $codes_opt->fetch_assoc()): ?>
+                        <option value="<?php echo htmlspecialchars($c['code_sub']); ?>" <?php if($filter_code == $c['code_sub']) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($c['code_sub']); ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
             </div>
         </div>
         
@@ -578,10 +617,10 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
 
         const searchInput = document.getElementById('liveSearchInput');
         const tableBody = document.getElementById('tableBody');
-        const recordInfo = document.getElementById('recordInfo');
         
         // Capture current filters
         const currentCategory = "<?php echo htmlspecialchars($filter_category); ?>";
+        const currentType = "<?php echo htmlspecialchars($filter_type); ?>";
         const currentMethod = "<?php echo htmlspecialchars($filter_method); ?>";
         const currentCode = "<?php echo htmlspecialchars($filter_code); ?>";
         const currentStart = "<?php echo htmlspecialchars($start_date); ?>";
@@ -596,6 +635,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
             // Include filters in AJAX URL
             let url = `?ajax_search=${encodeURIComponent(query)}&page=${page}`;
             if(currentCategory !== 'All Categories') url += `&category=${encodeURIComponent(currentCategory)}`;
+            if(currentType !== 'All Types') url += `&type=${encodeURIComponent(currentType)}`;
             if(currentMethod !== 'All Methods') url += `&method=${encodeURIComponent(currentMethod)}`;
             if(currentCode !== 'All Codes') url += `&code=${encodeURIComponent(currentCode)}`;
             if(currentStart) url += `&start=${encodeURIComponent(currentStart)}`;
@@ -629,6 +669,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
         function applyFilters() {
             const search = document.getElementById('liveSearchInput').value;
             const category = document.getElementById('filterCategory').value;
+            const type = document.getElementById('filterType').value;
             const method = document.getElementById('filterMethod').value;
             const code = document.getElementById('filterCode').value;
             const start = document.getElementById('startDate').value;
@@ -644,6 +685,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
             const params = new URLSearchParams();
             if(search) params.set('search', search);
             if(category !== 'All Categories') params.set('category', category);
+            if(type !== 'All Types') params.set('type', type);
             if(method !== 'All Methods') params.set('method', method);
             if(code !== 'All Codes') params.set('code', code);
             if(start) params.set('start', start);

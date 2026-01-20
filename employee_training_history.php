@@ -19,6 +19,27 @@ if (!isset($_GET['id_karyawan']) || empty($_GET['id_karyawan'])) {
 
 $id_karyawan = (int)$_GET['id_karyawan'];
 
+// --- HELPER FUNCTION: Smart Date Formatting ---
+function formatDateRange($start_date, $end_date) {
+    if (empty($start_date)) return '-';
+    
+    $start = strtotime($start_date);
+    $end = (!empty($end_date) && $end_date != '0000-00-00') ? strtotime($end_date) : $start;
+
+    if (date('Y-m-d', $start) === date('Y-m-d', $end)) {
+        return date('M d, Y', $start);
+    }
+
+    if (date('Y', $start) === date('Y', $end)) {
+        if (date('M', $start) === date('M', $end)) {
+            return date('M d', $start) . ' - ' . date('d, Y', $end);
+        }
+        return date('M d', $start) . ' - ' . date('M d, Y', $end);
+    }
+
+    return date('M d, Y', $start) . ' - ' . date('M d, Y', $end);
+}
+
 // --- GET PARAMETERS FOR SEARCH/PAGINATION ---
 $search = $_GET['search'] ?? '';
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -49,11 +70,11 @@ if (isset($_GET['ajax_search'])) {
     $total_rows = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_rows / $limit);
 
-    // 2. Fetch Data
+    // 2. Fetch Data (Added ts.date_end)
     $list_sql = "
         SELECT 
             t.nama_training, t.jenis AS category, t.type AS training_type, 
-            ts.date_start, ts.method, ts.place, ts.credit_hour,
+            ts.date_start, ts.date_end, ts.method, ts.place, ts.credit_hour,
             s.pre, s.post
         FROM score s
         JOIN training_session ts ON s.id_session = ts.id_session
@@ -70,6 +91,9 @@ if (isset($_GET['ajax_search'])) {
         while ($row = $result->fetch_assoc()) {
             $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
             $methodClass = (stripos($row['method'], 'Online') !== false) ? 'method-online' : 'method-class';
+            
+            // Format Date Range
+            $date_display = formatDateRange($row['date_start'], $row['date_end'] ?? '');
             ?>
             <tr>
                 <td>
@@ -77,8 +101,8 @@ if (isset($_GET['ajax_search'])) {
                         <?php echo htmlspecialchars($row['nama_training']); ?>
                     </div>
                 </td>
-                <td style="color:#666; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500;">
-                    <?php echo date('M d, Y', strtotime($row['date_start'])); ?>
+                <td style="color:#666; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; white-space: nowrap;">
+                    <?php echo $date_display; ?>
                 </td>
                 <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
                 <td><span class="badge type-info"><?php echo htmlspecialchars($row['training_type']); ?></span></td>
@@ -182,11 +206,11 @@ $count_sql = "
 $total_rows = $conn->query($count_sql)->fetch_assoc()['total'];
 $total_pages = ceil($total_rows / $limit);
 
-// Data Query
+// Data Query (Added ts.date_end)
 $hist_sql = "
     SELECT 
         t.nama_training, t.jenis AS category, t.type AS training_type, 
-        ts.date_start, ts.method, ts.place, ts.credit_hour,
+        ts.date_start, ts.date_end, ts.method, ts.place, ts.credit_hour,
         s.pre, s.post
     FROM score s
     JOIN training_session ts ON s.id_session = ts.id_session
@@ -349,7 +373,7 @@ $history_result = $conn->query($hist_sql);
                     <div>
                         <span class="hero-label">Employee Profile</span>
                         <h1 class="hero-name"><?php echo htmlspecialchars($employee['nama_karyawan']); ?></h1>
-                        <span class="hero-id">Index: <?php echo htmlspecialchars($employee['index_karyawan']); ?></span>
+                        <span class="hero-id">ID: <?php echo htmlspecialchars($employee['index_karyawan']); ?></span>
                     </div>
 
                     <div class="hero-details-stack">
@@ -406,7 +430,7 @@ $history_result = $conn->query($hist_sql);
                         <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
                         <input type="text" id="searchInput" placeholder="Search training..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
-                    <a href="export_employee_report.php?id_karyawan=<?php echo $id_karyawan; ?>" id="exportBtn" class="btn-export">
+                    <a href="export_employee_history.php?id_karyawan=<?php echo $id_karyawan; ?>" id="exportBtn" class="btn-export">
                         <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                     </a>
                 </div>
@@ -430,6 +454,9 @@ $history_result = $conn->query($hist_sql);
                             <?php while($row = $history_result->fetch_assoc()): 
                                 $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
                                 $methodClass = (stripos($row['method'], 'Online') !== false) ? 'method-online' : 'method-class';
+                                
+                                // FORMAT DATE RANGE HERE
+                                $date_display = formatDateRange($row['date_start'], $row['date_end'] ?? '');
                             ?>
                             <tr>
                                 <td>
@@ -437,8 +464,8 @@ $history_result = $conn->query($hist_sql);
                                         <?php echo htmlspecialchars($row['nama_training']); ?>
                                     </div>
                                 </td>
-                                <td style="color:#666; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500;">
-                                    <?php echo date('M d, Y', strtotime($row['date_start'])); ?>
+                                <td style="color:#666; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; white-space: nowrap;">
+                                    <?php echo $date_display; ?>
                                 </td>
                                 <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
                                 
@@ -532,8 +559,7 @@ $history_result = $conn->query($hist_sql);
         }
 
         function fetchData(query, page) {
-            // Update Export Link to include search param
-            exportBtn.href = `export_employee_history.php?id_karyawan=${empId}&search=${encodeURIComponent(query)}`;
+            exportBtn.href = `export_employee_report.php?id_karyawan=${empId}&search=${encodeURIComponent(query)}`;
             
             fetch(`?id_karyawan=${empId}&ajax_search=${encodeURIComponent(query)}&page=${page}`)
                 .then(response => response.json())
