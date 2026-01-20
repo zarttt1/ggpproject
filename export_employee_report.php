@@ -1,5 +1,4 @@
 <?php
-// Pastikan tidak ada spasi sebelum tag PHP
 require 'vendor/autoload.php';
 require 'db_connect.php';
 session_start();
@@ -8,62 +7,91 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
-// 1. Ambil Semua Data Karyawan
-// Sesuaikan nama kolom dengan tabel 'karyawan' dan 'func' Anda
-$sql = "
+if (!isset($_GET['id_karyawan'])) {
+    die("ID Karyawan tidak ditemukan.");
+}
+
+$id_karyawan = (int)$_GET['id_karyawan'];
+
+// 1. Ambil Data Profil Karyawan
+// PERBAIKAN: Pastikan k.id_bu adalah nama kolom foreign key yang benar di tabel karyawan
+$user_sql = "
     SELECT 
         k.index_karyawan, 
         k.nama_karyawan, 
-        f.func_n2 as bu, 
-        f.func_n1 as jabatan,
-        k.gender,
-        k.status_karyawan
+        b.nama_bu, 
+        f.func_n1, 
+        f.func_n2 
     FROM karyawan k
-    LEFT JOIN func f ON k.id_func = f.id_func
-    ORDER BY k.nama_karyawan ASC
+    LEFT JOIN func f ON f.id_func = f.id_func
+    LEFT JOIN bu b ON b.id_bu = b.id_bu 
+    WHERE k.id_karyawan = $id_karyawan
 ";
-$result = $conn->query($sql);
+
+$user_res = $conn->query($user_sql);
+
+// Jika masih error, kemungkinan kolom penghubungnya bukan id_bu
+if (!$user_res) {
+    die("Gagal mengambil data: " . $conn->error . ". Periksa apakah kolom 'id_bu' ada di tabel karyawan.");
+}
+
+$user = $user_res->fetch_assoc();
+if (!$user) { die("Data karyawan tidak ditemukan."); }
+
+// 2. Ambil Riwayat Training
+$history_sql = "
+    SELECT t.nama_training, ts.date_start, t.type, ts.method, s.pre, s.post 
+    FROM score s
+    JOIN training_session ts ON s.id_session = ts.id_session
+    JOIN training t ON ts.id_training = t.id_training
+    WHERE s.id_karyawan = $id_karyawan
+    ORDER BY ts.date_start DESC
+";
+$history_res = $conn->query($history_sql);
 
 // --- PROSES EXCEL ---
-$templateFile = __DIR__ . '/uploads/Employee Reports.xlsx'; 
-if (!file_exists($templateFile)) {
-    die("File template tidak ditemukan.");
+$templatePath = __DIR__ . '/uploads/Employee Reports.xlsx'; 
+if (!file_exists($templatePath)) {
+    die("File template tidak ditemukan!");
 }
 
-$spreadsheet = IOFactory::load($templateFile);
+$spreadsheet = IOFactory::load($templatePath);
 $sheet = $spreadsheet->getActiveSheet();
 
-// 2. Isi Header (Contoh: Menampilkan total karyawan)
-$total_karyawan = $result->num_rows;
-$sheet->setCellValue('C7', ': Seluruh Karyawan');
-$sheet->setCellValue('C8', ': ' . date('d M Y'));
-$sheet->setCellValue('C9', ': ' . $total_karyawan . ' Orang');
+// 3. Mengisi Data Profil sesuai Template
+$sheet->setCellValue('C7', ': ' . $user['index_karyawan']);
+$sheet->setCellValue('C8', ': ' . $user['nama_karyawan']);
+$sheet->setCellValue('C9', ': ' . ($user['nama_bu'] ?? '-')); // Menampilkan Nama BU
+$sheet->setCellValue('C10', ': ' . ($user['func_n1'] ?? '-'));
+$sheet->setCellValue('C11', ': ' . ($user['func_n2'] ?? '-'));
 
-// 3. Isi Tabel Data (Mulai Baris 12 sesuai struktur umum template)
-$row = 12; 
+// 4. Mengisi Tabel Riwayat Training mulai baris 14
+$row = 14;
 $no = 1;
 
-while ($emp = $result->fetch_assoc()) {
-    $sheet->setCellValue('A' . $row, $no);
-    $sheet->setCellValue('B' . $row, $emp['index_karyawan']);
-    $sheet->setCellValue('C' . $row, $emp['nama_karyawan']);
-    $sheet->setCellValue('D' . $row, $emp['bu']);
-    $sheet->setCellValue('E' . $row, $emp['jabatan']);
-    $sheet->setCellValue('F' . $row, $emp['gender']);
-    $sheet->setCellValue('G' . $row, $emp['status_karyawan']);
+if ($history_res && $history_res->num_rows > 0) {
+    while ($h = $history_res->fetch_assoc()) {
+        $sheet->setCellValue('A' . $row, $no);
+        $sheet->setCellValue('B' . $row, $h['nama_training']);
+        $sheet->setCellValue('C' . $row, date('d-M-Y', strtotime($h['date_start'])));
+        $sheet->setCellValue('D' . $row, $h['type'] ?? 'Internal');
+        $sheet->setCellValue('E' . $row, $h['method'] ?? 'Offline');
+        $sheet->setCellValue('F' . $row, $h['pre']);
+        $sheet->setCellValue('G' . $row, $h['post']);
 
-    // Berikan border agar rapi
-    $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-    
-    // Rata tengah untuk No dan Index
-    $sheet->getStyle("A$row:B$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        // Styling Border
+        $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle("A$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle("C$row:G$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-    $row++;
-    $no++;
+        $row++;
+        $no++;
+    }
 }
 
-// 4. Output ke Browser
-$filename = "Employee_Report_" . date('Ymd') . ".xlsx";
+// 5. Download
+$clean_name = str_replace(' ', '_', $user['nama_karyawan']);
+$filename = "Report_Training_" . $clean_name . ".xlsx";
 
 if (ob_get_length()) ob_end_clean();
 
