@@ -430,7 +430,7 @@ $history_result = $conn->query($hist_sql);
                         <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
                         <input type="text" id="searchInput" placeholder="Search training..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
-                    <a href="export_employee_history.php?id_karyawan=<?php echo $id_karyawan; ?>" id="exportBtn" class="btn-export">
+                    <a href="export_employee_report.php?id_karyawan=<?php echo $id_karyawan; ?>" id="exportBtn" class="btn-export">
                         <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                     </a>
                 </div>
