@@ -13,8 +13,11 @@ if (!isset($_GET['id_karyawan'])) {
 
 $id_karyawan = (int)$_GET['id_karyawan'];
 
-// 1. Ambil Data Profil Karyawan
-// PERBAIKAN: Pastikan k.id_bu adalah nama kolom foreign key yang benar di tabel karyawan
+/**
+ * 1. Ambil Data Profil Karyawan dari tabel Score
+ * Kita mengambil baris terakhir dari tabel score untuk karyawan tersebut
+ * agar mendapatkan id_func dan id_bu yang terbaru/aktif di sistem.
+ */
 $user_sql = "
     SELECT 
         k.index_karyawan, 
@@ -22,23 +25,26 @@ $user_sql = "
         b.nama_bu, 
         f.func_n1, 
         f.func_n2 
-    FROM karyawan k
-    LEFT JOIN func f ON f.id_func = f.id_func
-    LEFT JOIN bu b ON b.id_bu = b.id_bu 
-    WHERE k.id_karyawan = $id_karyawan
+    FROM score s
+    JOIN karyawan k ON s.id_karyawan = k.id_karyawan
+    LEFT JOIN func f ON s.id_func = f.id_func
+    LEFT JOIN bu b ON s.id_bu = b.id_bu
+    WHERE s.id_karyawan = $id_karyawan
+    ORDER BY s.id_score DESC 
+    LIMIT 1
 ";
 
 $user_res = $conn->query($user_sql);
-
-// Jika masih error, kemungkinan kolom penghubungnya bukan id_bu
 if (!$user_res) {
-    die("Gagal mengambil data: " . $conn->error . ". Periksa apakah kolom 'id_bu' ada di tabel karyawan.");
+    die("Error Database Profil: " . $conn->error);
+}
+$user = $user_res->fetch_assoc();
+
+if (!$user) { 
+    die("Data karyawan tidak ditemukan di riwayat training (tabel score)."); 
 }
 
-$user = $user_res->fetch_assoc();
-if (!$user) { die("Data karyawan tidak ditemukan."); }
-
-// 2. Ambil Riwayat Training
+// 2. Ambil Semua Riwayat Training
 $history_sql = "
     SELECT t.nama_training, ts.date_start, t.type, ts.method, s.pre, s.post 
     FROM score s
@@ -58,14 +64,14 @@ if (!file_exists($templatePath)) {
 $spreadsheet = IOFactory::load($templatePath);
 $sheet = $spreadsheet->getActiveSheet();
 
-// 3. Mengisi Data Profil sesuai Template
+// 3. Mengisi Data Profil (C7 - C11) sesuai template yang anda kirim
 $sheet->setCellValue('C7', ': ' . $user['index_karyawan']);
 $sheet->setCellValue('C8', ': ' . $user['nama_karyawan']);
-$sheet->setCellValue('C9', ': ' . ($user['nama_bu'] ?? '-')); // Menampilkan Nama BU
+$sheet->setCellValue('C9', ': ' . ($user['nama_bu'] ?? '-')); // Ini akan mengambil NAMA BU yang benar
 $sheet->setCellValue('C10', ': ' . ($user['func_n1'] ?? '-'));
 $sheet->setCellValue('C11', ': ' . ($user['func_n2'] ?? '-'));
 
-// 4. Mengisi Tabel Riwayat Training mulai baris 14
+// 4. Mengisi Tabel Riwayat Training (Mulai baris 14)
 $row = 14;
 $no = 1;
 
@@ -81,6 +87,8 @@ if ($history_res && $history_res->num_rows > 0) {
 
         // Styling Border
         $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        
+        // Alignment
         $sheet->getStyle("A$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle("C$row:G$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
