@@ -286,7 +286,7 @@ $history_result = $conn->query($hist_sql);
         .hero-content { flex-grow: 1; display: flex; flex-direction: column; gap: 10px; z-index: 2; }
         .hero-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; font-weight: 600; }
         .hero-name { font-size: 28px; font-weight: 700; line-height: 1.1; margin: 0; }
-        .hero-id { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block; width: fit-content; margin-bottom: 5px; }
+        .hero-id { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block; width: fit-content; margin-bottom: 5px;margin-top: 4px; }
 
         .hero-details-stack { display: flex; flex-direction: column; gap: 4px; font-size: 13px; opacity: 0.95; margin-top: 5px; }
         .detail-row { display: flex; align-items: center; gap: 8px; }
@@ -373,7 +373,7 @@ $history_result = $conn->query($hist_sql);
                     <div>
                         <span class="hero-label">Employee Profile</span>
                         <h1 class="hero-name"><?php echo htmlspecialchars($employee['nama_karyawan']); ?></h1>
-                        <span class="hero-id">ID: <?php echo htmlspecialchars($employee['index_karyawan']); ?></span>
+                        <span class="hero-id">Index : <?php echo htmlspecialchars($employee['index_karyawan']); ?></span>
                     </div>
 
                     <div class="hero-details-stack">

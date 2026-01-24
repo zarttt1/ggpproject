@@ -1,25 +1,37 @@
 <?php
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Tangkap data format file yang dikirim dari form
-    $download_format = isset($_POST['download_format']) ? $_POST['download_format'] : 'xlsx';
+// api/download_template.php
 
-    // Tentukan nama file yang ingin diunduh berdasarkan format yang dipilih
-    $template_file = "uploads/template." . $download_format; // Menambahkan format yang dipilih ke nama file
+// 1. Define the actual file name on the server
+// Ensure "template.xlsx" is inside the "api" folder
+$server_filename = 'template.xlsx'; 
 
-    // Cek apakah file ada di server
-    if (file_exists($template_file)) {
-        // Tentukan header agar browser tahu ini adalah file untuk diunduh
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="template.' . $download_format . '"'); // Menambahkan format file ke nama file unduhan
-        header('Content-Length: ' . filesize($template_file));
+// 2. Build the absolute path using __DIR__
+// __DIR__ guarantees we look in the same folder as this script
+$file_path = __DIR__ . '/' . $server_filename;
 
-        // Baca dan kirim file ke browser
-        readfile($template_file);
-        exit;
-    } else {
-        echo "File tidak ditemukan.";
-    }
+// 3. Process the Download
+if (file_exists($file_path)) {
+    // Clear output buffer to prevent file corruption
+    if (ob_get_level()) ob_end_clean();
+
+    // Determine the name the user will see when downloading
+    $download_name = 'GGF_Import_Template.xlsx';
+
+    // Headers
+    header('Content-Description: File Transfer');
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $download_name . '"');
+    header('Expires: 0');
+    header('Cache-Control: must-revalidate');
+    header('Pragma: public');
+    header('Content-Length: ' . filesize($file_path));
+
+    // Send file
+    readfile($file_path);
+    exit;
 } else {
-    echo "Tidak ada data yang dikirim.";
+    // Debugging: This tells you exactly where Vercel is looking
+    echo "Error: File not found.<br>";
+    echo "System looked for: " . $file_path;
 }
 ?>
