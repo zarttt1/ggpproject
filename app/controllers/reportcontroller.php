@@ -158,5 +158,141 @@ class ReportController {
         <?php
         return ob_get_clean();
     }
+
+    public function details() {
+        $this->checkAuth();
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        
+        if ($id === 0) {
+            header("Location: index.php?action=reports");
+            exit();
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_training'])) {
+            if (($_SESSION['role'] ?? '') === 'admin') {
+                $data = [
+                    'title' => trim($_POST['title']),
+                    'code' => trim($_POST['code']),
+                    'credit_hour' => (float)$_POST['credit_hour'],
+                    'date_start' => $_POST['date_start'],
+                    'date_end' => $_POST['date_end']
+                ];
+                $this->trainingModel->updateSession($id, $data);
+                header("Location: index.php?action=details&id=" . $id);
+                exit();
+            }
+        }
+
+        $meta = $this->trainingModel->getSessionById($id);
+        if (!$meta) {
+            echo "Session not found."; 
+            exit();
+        }
+        
+        $stats = $this->trainingModel->getSessionStats($id);
+        $top_improvers = $this->trainingModel->getTopImprovers($id);
+        
+        $search = $_GET['search'] ?? '';
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $participantsData = $this->trainingModel->getParticipants($id, $search, $page);
+
+        $training_name = $meta['nama_training'];
+        $code_sub = $meta['code_sub'];
+        $credit_hour = $meta['credit_hour'];
+        $date_start_raw = $meta['date_start'];
+        $date_end_raw = $meta['date_end'];
+        $display_date = formatDateRange($date_start_raw, $date_end_raw);
+        
+        $total_participants = $stats['total'] > 0 ? $stats['total'] : 0;
+        $avg_pre = number_format($stats['avg_pre'] ?? 0, 1);
+        $avg_post = number_format($stats['avg_post'] ?? 0, 1);
+        $sat_subject = $stats['avg_subject'] ? number_format($stats['avg_subject'], 1) : '-';
+        $sat_instructor = $stats['avg_instructor'] ? number_format($stats['avg_instructor'], 1) : '-';
+        $sat_infras = $stats['avg_infras'] ? number_format($stats['avg_infras'], 1) : '-';
+        
+        $histLabels = ['0-20', '21-40', '41-60', '61-80', '81-100'];
+        $preHistData = [$stats['pre_0_20'], $stats['pre_21_40'], $stats['pre_41_60'], $stats['pre_61_80'], $stats['pre_81_100']];
+        $postHistData = [$stats['post_0_20'], $stats['post_21_40'], $stats['post_41_60'], $stats['post_61_80'], $stats['post_81_100']];
+
+        require 'app/views/details.php';
+    }
+
+    public function detailsSearch() {
+        $this->checkAuth();
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        $search = $_GET['ajax_search'] ?? '';
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+
+        $data = $this->trainingModel->getParticipants($id, $search, $page);
+
+        $tableHtml = $this->renderParticipantRows($data['data']);
+        $paginationHtml = $this->renderDetailsPagination($data, $id, $search);
+
+        header('Content-Type: application/json');
+        echo json_encode(['table' => $tableHtml, 'pagination' => $paginationHtml]);
+        exit;
+    }
+    
+    private function renderParticipantRows($rows) {
+        ob_start();
+        if (count($rows) > 0) {
+            foreach ($rows as $p) {
+                $improvement = $p['post'] - $p['pre'];
+                $impSign = ($improvement > 0) ? '+' : '';
+                $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
+                $initials = strtoupper(substr($p['nama_karyawan'], 0, 1));
+                ?>
+                <tr>
+                    <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
+                    <td>
+                        <div class="user-cell">
+                            <div class="user-avatar"><?php echo $initials; ?></div> 
+                            <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($p['nama_karyawan']); ?></span>
+                        </div>
+                    </td>
+                    <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['nama_bu']); ?></span></td>
+                    <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['func_n1']); ?></span></td>
+                    <td style="text-align:center; color:#888;"><?php echo $p['pre']; ?></td>
+                    <td style="text-align:center;"><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
+                    <td style="text-align:center;"><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
+                </tr>
+                <?php
+            }
+        } else {
+            echo '<tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No participants found.</td></tr>';
+        }
+        return ob_get_clean();
+    }
+
+    private function renderDetailsPagination($data, $id, $search) {
+        $page = $data['current_page'];
+        $total_pages = $data['total_pages'];
+        $total_records = $data['total_records'];
+        $limit = 10;
+        $offset = ($page - 1) * $limit;
+
+        ob_start();
+        ?>
+        <div>Showing <?php echo ($total_records > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records</div>
+        <div class="pagination-controls">
+            <?php if($page > 1): ?>
+                <a href="#" onclick="changePage(<?php echo $page - 1; ?>); return false;" class="page-btn">&lt;</a>
+            <?php endif; ?>
+            
+            <?php for($i=1; $i<=$total_pages; $i++): ?>
+                <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
+                    <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-btn <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
+                <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
+                    <span class="dots">...</span>
+                <?php endif; ?>
+            <?php endfor; ?>
+
+            <?php if($page < $total_pages): ?>
+                <a href="#" onclick="changePage(<?php echo $page + 1; ?>); return false;" class="page-btn">&gt;</a>
+            <?php endif; ?>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
 }
 ?>

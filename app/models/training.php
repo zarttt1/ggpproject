@@ -244,5 +244,113 @@ class Training {
     public function getTrainingTypes() {
         return $this->db->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type")->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    // --- FOR DETAILS PAGE ---
+
+    public function getSessionById($id) {
+        $sql = "SELECT t.nama_training, ts.code_sub, ts.date_start, ts.date_end, ts.credit_hour 
+                FROM training_session ts 
+                JOIN training t ON ts.id_training = t.id_training 
+                WHERE ts.id_session = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    public function getSessionStats($id) {
+        // Calculates averages and histogram buckets
+        $sql = "SELECT 
+            COUNT(id_score) as total,
+            AVG(pre) as avg_pre,
+            AVG(post) as avg_post,
+            AVG(statis_subject) as avg_subject,
+            AVG(instructor) as avg_instructor,
+            AVG(statis_infras) as avg_infras,
+            SUM(CASE WHEN pre BETWEEN 0 AND 20 THEN 1 ELSE 0 END) as pre_0_20,
+            SUM(CASE WHEN pre BETWEEN 21 AND 40 THEN 1 ELSE 0 END) as pre_21_40,
+            SUM(CASE WHEN pre BETWEEN 41 AND 60 THEN 1 ELSE 0 END) as pre_41_60,
+            SUM(CASE WHEN pre BETWEEN 61 AND 80 THEN 1 ELSE 0 END) as pre_61_80,
+            SUM(CASE WHEN pre BETWEEN 81 AND 100 THEN 1 ELSE 0 END) as pre_81_100,
+            SUM(CASE WHEN post BETWEEN 0 AND 20 THEN 1 ELSE 0 END) as post_0_20,
+            SUM(CASE WHEN post BETWEEN 21 AND 40 THEN 1 ELSE 0 END) as post_21_40,
+            SUM(CASE WHEN post BETWEEN 41 AND 60 THEN 1 ELSE 0 END) as post_41_60,
+            SUM(CASE WHEN post BETWEEN 61 AND 80 THEN 1 ELSE 0 END) as post_61_80,
+            SUM(CASE WHEN post BETWEEN 81 AND 100 THEN 1 ELSE 0 END) as post_81_100
+        FROM score WHERE id_session = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    public function getTopImprovers($id) {
+        $sql = "SELECT k.nama_karyawan, (s.post - s.pre) as improvement, s.post, s.pre
+                FROM score s 
+                JOIN karyawan k ON s.id_karyawan = k.id_karyawan
+                WHERE s.id_session = ?
+                ORDER BY improvement DESC, s.pre ASC
+                LIMIT 3";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetchAll();
+    }
+
+    public function getParticipants($id, $search = '', $page = 1, $limit = 10) {
+        $offset = ($page - 1) * $limit;
+        $params = [$id];
+        $where = "WHERE s.id_session = ?";
+        
+        if (!empty($search)) {
+            $where .= " AND (k.nama_karyawan LIKE ? OR k.index_karyawan LIKE ?)";
+            $params[] = "%$search%";
+            $params[] = "%$search%";
+        }
+
+        // Count
+        $countSql = "SELECT COUNT(*) FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan $where";
+        $stmtCount = $this->db->prepare($countSql);
+        $stmtCount->execute($params);
+        $totalRecords = $stmtCount->fetchColumn();
+
+        // Fetch Data
+        $sql = "SELECT k.index_karyawan, k.nama_karyawan, b.nama_bu, f.func_n1, s.pre, s.post
+                FROM score s
+                JOIN karyawan k ON s.id_karyawan = k.id_karyawan
+                LEFT JOIN bu b ON s.id_bu = b.id_bu
+                LEFT JOIN func f ON s.id_func = f.id_func
+                $where
+                ORDER BY k.nama_karyawan ASC
+                LIMIT $limit OFFSET $offset";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $results = $stmt->fetchAll();
+
+        return [
+            'data' => $results,
+            'total_records' => $totalRecords,
+            'total_pages' => ceil($totalRecords / $limit),
+            'current_page' => $page
+        ];
+    }
+
+    public function updateSession($id, $data) {
+        try {
+            $this->db->beginTransaction();
+
+            // Update Training Name
+            $stmt1 = $this->db->prepare("UPDATE training t JOIN training_session ts ON t.id_training = ts.id_training SET t.nama_training = ? WHERE ts.id_session = ?");
+            $stmt1->execute([$data['title'], $id]);
+            
+            // Update Session Details
+            $stmt2 = $this->db->prepare("UPDATE training_session SET code_sub = ?, credit_hour = ?, date_start = ?, date_end = ? WHERE id_session = ?");
+            $stmt2->execute([$data['code'], $data['credit_hour'], $data['date_start'], $data['date_end'], $id]);
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            return false;
+        }
+    }
 }
 ?>
