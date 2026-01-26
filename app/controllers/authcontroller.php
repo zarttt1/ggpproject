@@ -25,7 +25,7 @@ class AuthController {
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['role'] = $user['role'];
                     
-                    header("Location: dashboard.php");
+                    header("Location: index.php?action=dashboard");
                     exit();
                 } else {
                     return "Your account is " . htmlspecialchars($user['status']) . ".";
