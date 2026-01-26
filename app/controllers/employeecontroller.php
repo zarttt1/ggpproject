@@ -163,5 +163,83 @@ class EmployeeController {
         <?php
         return ob_get_clean();
     }
+    
+    public function history() {
+        $this->checkAuth();
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+        if ($id === 0) {
+            header("Location: index.php?action=employees");
+            exit();
+        }
+
+        $employee = $this->empModel->getEmployeeById($id);
+        if (!$employee) {
+            die("Employee not found.");
+        }
+
+        $stats = $this->empModel->getEmployeeStats($id);
+        
+        $search = $_GET['search'] ?? '';
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $historyData = $this->empModel->getTrainingHistory($id, $search, $page);
+
+        $total_sessions = $stats['total_sessions'];
+        $total_hours = $stats['total_hours'] ?? 0;
+        $count_tech = $stats['count_tech'] ?? 0;
+        $count_soft = $stats['count_soft'] ?? 0;
+
+        require 'app/views/employee_history.php';
+    }
+
+    public function historySearch() {
+        $this->checkAuth();
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        $search = $_GET['ajax_search'] ?? '';
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+
+        $data = $this->empModel->getTrainingHistory($id, $search, $page);
+
+        $tableHtml = $this->renderHistoryRows($data['data']);
+        $paginationHtml = $this->renderPagination($data); // We reuse the existing pagination helper
+
+        header('Content-Type: application/json');
+        echo json_encode(['table' => $tableHtml, 'pagination' => $paginationHtml]);
+        exit;
+    }
+
+    private function renderHistoryRows($rows) {
+        ob_start();
+        if (count($rows) > 0) {
+            foreach ($rows as $row) {
+                $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
+                $methodClass = (stripos($row['method'], 'Online') !== false) ? 'method-online' : 'method-class';
+                $date_display = formatDateRange($row['date_start'], $row['date_end'] ?? '');
+                ?>
+                <tr>
+                    <td>
+                        <div style="font-weight:600; color:#333; line-height:1.4;">
+                            <?php echo htmlspecialchars($row['nama_training']); ?>
+                        </div>
+                    </td>
+                    <td style="color:#666; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; white-space: nowrap;">
+                        <?php echo $date_display; ?>
+                    </td>
+                    <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
+                    <td><span class="badge type-info"><?php echo htmlspecialchars($row['training_type']); ?></span></td>
+                    <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
+                    <td style="text-align: center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour']); ?></td>
+                    <td style="text-align: center; color:#888;"><?php echo $row['pre']; ?></td>
+                    <td style="text-align: center;">
+                        <span class="score-box"><?php echo $row['post']; ?></span>
+                    </td>
+                </tr>
+                <?php
+            }
+        } else {
+            echo '<tr><td colspan="8" style="text-align:center; padding: 25px; color:#888;">No training history found.</td></tr>';
+        }
+        return ob_get_clean();
+    }
 }
 ?>

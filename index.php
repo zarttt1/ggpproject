@@ -59,6 +59,14 @@ switch ($action) {
         $employee->filterOptions();
         break;
 
+    case 'employee_history':
+        $employee->history();
+        break;
+        
+    case 'employee_history_search':
+        $employee->historySearch();
+        break;
+
     default: header("Location: index.php?action=show_login"); exit();
 }
 ?>

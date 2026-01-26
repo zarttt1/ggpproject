@@ -105,5 +105,78 @@ class Employee {
 
         return ['fn1' => $fn1Opts, 'fn2' => $fn2Opts];
     }
+    // --- FOR EMPLOYEE HISTORY PAGE ---
+
+    public function getEmployeeById($id) {
+        $sql = "SELECT 
+                    k.nama_karyawan, k.index_karyawan,
+                    (SELECT b.nama_bu FROM score s JOIN bu b ON s.id_bu = b.id_bu WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as bu,
+                    (SELECT f.func_n1 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as func,
+                    (SELECT f.func_n2 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as func2
+                FROM karyawan k
+                WHERE k.id_karyawan = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    public function getEmployeeStats($id) {
+        $sql = "SELECT 
+                    COUNT(id_score) as total_sessions,
+                    AVG(post) as avg_score,
+                    SUM(CASE WHEN t.jenis LIKE '%Technical%' THEN 1 ELSE 0 END) as count_tech,
+                    SUM(CASE WHEN t.jenis LIKE '%Soft%' THEN 1 ELSE 0 END) as count_soft,
+                    SUM(ts.credit_hour) as total_hours  
+                FROM score s
+                JOIN training_session ts ON s.id_session = ts.id_session
+                JOIN training t ON ts.id_training = t.id_training
+                WHERE s.id_karyawan = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    public function getTrainingHistory($id, $search = '', $page = 1, $limit = 10) {
+        $offset = ($page - 1) * $limit;
+        $params = [$id];
+        $where = "WHERE s.id_karyawan = ?";
+
+        if (!empty($search)) {
+            $where .= " AND (t.nama_training LIKE ? OR t.jenis LIKE ?)";
+            $params[] = "%$search%";
+            $params[] = "%$search%";
+        }
+
+        $countSql = "SELECT COUNT(*) 
+                     FROM score s 
+                     JOIN training_session ts ON s.id_session = ts.id_session
+                     JOIN training t ON ts.id_training = t.id_training 
+                     $where";
+        $stmtCount = $this->db->prepare($countSql);
+        $stmtCount->execute($params);
+        $totalRecords = $stmtCount->fetchColumn();
+
+        $sql = "SELECT 
+                    t.nama_training, t.jenis AS category, t.type AS training_type, 
+                    ts.date_start, ts.date_end, ts.method, ts.place, ts.credit_hour,
+                    s.pre, s.post
+                FROM score s
+                JOIN training_session ts ON s.id_session = ts.id_session
+                JOIN training t ON ts.id_training = t.id_training
+                $where
+                ORDER BY ts.date_start DESC
+                LIMIT $limit OFFSET $offset";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $results = $stmt->fetchAll();
+
+        return [
+            'data' => $results,
+            'total_records' => $totalRecords,
+            'total_pages' => ceil($totalRecords / $limit),
+            'current_page' => $page
+        ];
+    }
 }
 ?>
