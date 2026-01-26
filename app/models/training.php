@@ -240,5 +240,9 @@ class Training {
             'current_page' => $page
         ];
     }
+
+    public function getTrainingTypes() {
+        return $this->db->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type")->fetchAll(PDO::FETCH_COLUMN);
+    }
 }
 ?>
