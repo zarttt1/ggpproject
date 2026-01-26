@@ -5,7 +5,6 @@ use Dotenv\Dotenv;
 
 // Load environment variables
 $dotenv = Dotenv::createImmutable(__DIR__);
-// Use safeLoad so it doesn't crash if .env is missing (though it should be there)
 $dotenv->safeLoad();
 
 $host = $_ENV['DB_HOST'] ?? 'localhost';
@@ -21,9 +20,12 @@ try {
         PDO::ATTR_EMULATE_PREPARES   => false,
     ];
     
+    // We create the connection
     $pdo = new PDO($dsn, $user, $pass, $options);
 
 } catch (\PDOException $e) {
-    die("Database connection failed."); 
+    // If it fails, we stop everything. 
+    // In production, you'd log this to a file, not echo it.
+    die("Database connection failed: " . $e->getMessage()); 
 }
 ?>
