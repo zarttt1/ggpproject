@@ -1,6 +1,6 @@
 <?php
 /* ===================================================================
-   GGF TURBO UPLOADER (DDL Fix)
+   GGF TURBO UPLOADER (Forgiving Matcher)
    ===================================================================
 */
 session_start();
@@ -56,16 +56,15 @@ if (!move_uploaded_file($file['tmp_name'], $target)) {
 
 $ext = strtolower(pathinfo($target, PATHINFO_EXTENSION));
 
-/* --- DATABASE PREP (MOVED OUTSIDE TRANSACTION) --- */
+/* --- DATABASE PREP --- */
 try {
-    // 1. Prepare Temp Tables BEFORE transaction (Fixes Implicit Commit issue)
+    // 1. Prepare Temp Table
     $pdo->exec("CREATE TEMPORARY TABLE IF NOT EXISTS tmp_upload_keys (
         excel_row INT, id_session INT, id_karyawan INT, 
         nama VARCHAR(255), training VARCHAR(255), date_start DATE, 
         KEY idx_chk (id_session, id_karyawan)
     ) ENGINE=InnoDB");
     
-    // Use DELETE instead of TRUNCATE just to be safe inside/outside transactions
     $pdo->exec("DELETE FROM tmp_upload_keys");
 
     /* --- START TRANSACTION --- */
@@ -75,19 +74,39 @@ try {
 
     $initialCount = (int)$pdo->query("SELECT COUNT(*) FROM score")->fetchColumn();
 
-    // Caching IDs
-    $bu = $pdo->query("SELECT nama_bu, id_bu FROM bu")->fetchAll(PDO::FETCH_KEY_PAIR);
-    $kar = $pdo->query("SELECT index_karyawan, id_karyawan FROM karyawan")->fetchAll(PDO::FETCH_KEY_PAIR);
-    $train = $pdo->query("SELECT nama_training, id_training FROM training")->fetchAll(PDO::FETCH_KEY_PAIR);
-
-    $func = [];
-    foreach ($pdo->query("SELECT id_func, func_n1, func_n2 FROM func") as $r) {
-        $func[$r['func_n1'] . '|' . ($r['func_n2'] ?? '')] = $r['id_func'];
+    // 2. CACHING IDS (With TRIM for Forgiveness)
+    
+    // BU
+    $bu = [];
+    foreach($pdo->query("SELECT nama_bu, id_bu FROM bu") as $r) {
+        $bu[trim($r['nama_bu'])] = $r['id_bu'];
     }
 
+    // Karyawan
+    $kar = [];
+    foreach($pdo->query("SELECT index_karyawan, id_karyawan FROM karyawan") as $r) {
+        $kar[trim($r['index_karyawan'])] = $r['id_karyawan'];
+    }
+
+    // Training
+    $train = [];
+    foreach($pdo->query("SELECT nama_training, id_training FROM training") as $r) {
+        $train[trim($r['nama_training'])] = $r['id_training'];
+    }
+
+    // Func
+    $func = [];
+    foreach ($pdo->query("SELECT id_func, func_n1, func_n2 FROM func") as $r) {
+        $k = trim($r['func_n1']) . '|' . trim($r['func_n2'] ?? '');
+        $func[$k] = $r['id_func'];
+    }
+
+    // Sessions
     $sess = [];
     foreach ($pdo->query("SELECT id_session, id_training, code_sub, date_start FROM training_session") as $r) {
-        $sess[$r['id_training'] . '|' . $r['code_sub'] . '|' . $r['date_start']] = $r['id_session'];
+        // STRICT MATCHING KEY: TrainingID | CleanCode | YYYY-MM-DD
+        $k = $r['id_training'] . '|' . trim($r['code_sub'] ?? '') . '|' . $r['date_start'];
+        $sess[$k] = $r['id_session'];
     }
 
     // Prepare Inserts
@@ -117,7 +136,7 @@ try {
     foreach ($reader->getSheetIterator() as $sheet) {
         foreach ($sheet->getRowIterator() as $row) {
             $excelRow++;
-            if ($excelRow === 1) continue; // Skip Header
+            if ($excelRow === 1) continue; 
 
             $r = $row->toArray();
             $rowsProcessed++;
@@ -163,7 +182,7 @@ try {
             $sk = $train[$subj] . '|' . trim($r[3] ?? '') . '|' . $ds;
             if (!isset($sess[$sk])) {
                 $de = parseDateFast($r[5] ?? null) ?: $ds;
-                // Credit Hour Cleanup
+                // Safe Float
                 $rawCredit = $r[6] ?? 0;
                 $creditHours = (float)(is_numeric($rawCredit) ? $rawCredit : str_replace(',', '.', $rawCredit));
                 
@@ -177,15 +196,15 @@ try {
             // --- BATCHING ---
             $sid = $sess[$sk];
             $kid = $kar[$idx];
+            $bid = $bu[$b];
+            $fid = $func[$fk];
             
             $q_name = $pdo->quote($name);
             $q_subj = $pdo->quote($subj);
             $q_ds   = $pdo->quote($ds);
+            
             $sqlKeys[] = "($excelRow, $sid, $kid, $q_name, $q_subj, $q_ds)";
 
-            $bid = $bu[$b];
-            $fid = $func[$fk];
-            
             $v_pre = f($r[14] ?? null);
             $v_post = f($r[15] ?? null);
             $v_sub = f($r[11] ?? null);
@@ -205,7 +224,6 @@ try {
     }
     $reader->close();
 
-    // Insert remaining batch
     if (!empty($sqlScores)) {
         $pdo->exec($baseKeysSQL . implode(',', $sqlKeys));
         $pdo->exec($baseScoreSQL . implode(',', $sqlScores) . $onDupSQL);
@@ -213,8 +231,6 @@ try {
 
     /* --- FINAL REPORTING --- */
     unlink($target); 
-
-    // Note: Implicit commits from DDL are handled by moving DDL up.
     
     $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
     $pdo->exec("SET UNIQUE_CHECKS=1");
@@ -236,10 +252,11 @@ try {
 
     $_SESSION['upload_message'] = "Processed in <b>{$time}s</b> | Total: {$processed} | Inserted: {$inserted} | Updated: {$updated}";
 
+    // Log to DB
     try {
         $pdo->prepare("INSERT INTO uploads (file_name, uploaded_by, status, rows_processed) VALUES (?,?,?,?)")
             ->execute([basename($file['name']), $_SESSION['username'] ?? 'Admin', 'Success', $processed]);
-    } catch (Exception $e) { /* Ignore log error */ }
+    } catch (Exception $e) { }
 
     header("Location: upload.php?status=success");
     exit();
