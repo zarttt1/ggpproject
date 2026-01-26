@@ -154,5 +154,91 @@ class Training {
     public function getTypes() {
         return $this->db->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL ORDER BY jenis")->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    // --- FOR REPORTS PAGE ---
+    public function getCategories() {
+        return $this->db->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis")->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public function getMethods() {
+        return $this->db->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method")->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public function getCodes() {
+        return $this->db->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub")->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public function getAllSessions($filters, $page = 1, $limit = 10) {
+        $offset = ($page - 1) * $limit;
+        $where = ["1=1"];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $where[] = "(t.nama_training LIKE ? OR ts.code_sub LIKE ?)";
+            $params[] = "%" . $filters['search'] . "%";
+            $params[] = "%" . $filters['search'] . "%";
+        }
+        if (!empty($filters['category']) && $filters['category'] !== 'All Categories') {
+            $where[] = "t.jenis = ?";
+            $params[] = $filters['category'];
+        }
+        if (!empty($filters['type']) && $filters['type'] !== 'All Types') {
+            $where[] = "t.type = ?";
+            $params[] = $filters['type'];
+        }
+        if (!empty($filters['method']) && $filters['method'] !== 'All Methods') {
+            $where[] = "ts.method = ?";
+            $params[] = $filters['method'];
+        }
+        if (!empty($filters['code']) && $filters['code'] !== 'All Codes') {
+            $where[] = "ts.code_sub = ?";
+            $params[] = $filters['code'];
+        }
+        
+        if (!empty($filters['start']) && !empty($filters['end'])) {
+            $where[] = "ts.date_start >= ? AND ts.date_start <= ?";
+            $params[] = $filters['start'];
+            $params[] = $filters['end'];
+        } elseif (!empty($filters['start'])) {
+            $where[] = "ts.date_start >= ?";
+            $params[] = $filters['start'];
+        } elseif (!empty($filters['end'])) {
+            $where[] = "ts.date_start <= ?";
+            $params[] = $filters['end'];
+        }
+
+        $whereSql = implode(' AND ', $where);
+
+        $countSql = "SELECT COUNT(DISTINCT ts.id_session) 
+                     FROM training_session ts 
+                     JOIN training t ON ts.id_training = t.id_training 
+                     WHERE $whereSql";
+        $stmtCount = $this->db->prepare($countSql);
+        $stmtCount->execute($params);
+        $totalRecords = $stmtCount->fetchColumn();
+
+        $dataSql = "
+            SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, 
+                   ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
+                   COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
+            FROM training_session ts
+            JOIN training t ON ts.id_training = t.id_training
+            LEFT JOIN score s ON ts.id_session = s.id_session
+            WHERE $whereSql
+            GROUP BY ts.id_session
+            ORDER BY ts.date_start DESC
+            LIMIT $limit OFFSET $offset
+        ";
+        $stmtData = $this->db->prepare($dataSql);
+        $stmtData->execute($params);
+        $results = $stmtData->fetchAll();
+
+        return [
+            'data' => $results,
+            'total_records' => $totalRecords,
+            'total_pages' => ceil($totalRecords / $limit),
+            'current_page' => $page
+        ];
+    }
 }
 ?>
