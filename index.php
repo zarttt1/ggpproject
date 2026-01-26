@@ -10,7 +10,9 @@ require_once 'app/controllers/DashboardController.php';
 require_once 'app/controllers/UploadController.php';
 require_once 'app/controllers/ReportController.php';
 require_once 'app/controllers/EmployeeController.php';
+require_once 'app/controllers/UserController.php';
 
+$userCtrl = new UserController($pdo);
 $auth = new AuthController($pdo);
 $dashboard = new DashboardController($pdo);
 $upload = new UploadController($pdo);
@@ -65,6 +67,15 @@ switch ($action) {
         
     case 'employee_history_search':
         $employee->historySearch();
+        break;
+
+    case 'register':
+    $auth->register();
+    break;
+
+    case 'users':
+        $userCtrl->index(); 
+        echo "User Controller not yet created. Please complete Step 43.";
         break;
 
     default: header("Location: index.php?action=show_login"); exit();
