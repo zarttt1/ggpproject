@@ -98,23 +98,22 @@ class Importer {
                     $r = $row->toArray();
                     $rowsProcessed++;
 
-                    $idx  = trim($r[0] ?? '');
-                    $name = trim($r[1] ?? '');
-                    $subj = trim($r[2] ?? '');
-                    $ds   = $this->parseDate($r[4] ?? null);
+                    $idx  = trim($r[1] ?? '');
+                    $name = trim($r[2] ?? '');
+                    $subj = trim($r[3] ?? '');
+                    $ds   = $this->parseDate($r[5] ?? null);
 
                     if (!$idx || !$subj || !$ds) { $rowsSkipped++; continue; }
-
-
-                    $b = trim($r[16] ?? '');
+                    
+                    $b = trim($r[18] ?? '');
                     if (!isset($bu[$b])) {
                         $insBU->execute([$b]);
                         $bu[$b] = $this->db->lastInsertId();
                     }
                     $bid = $bu[$b];
 
-                    $f1 = trim($r[17] ?? '');
-                    $f2 = trim($r[18] ?? '') ?: null;
+                    $f1 = trim($r[19] ?? '');
+                    $f2 = trim($r[20] ?? '') ?: null;
                     $fk = $f1 . '|' . ($f2 ?? '');
                     if (!isset($func[$fk])) {
                         $insFunc->execute([$f1, $f2]);
@@ -129,20 +128,33 @@ class Importer {
                     $kid = $kar[$idx];
 
                     if (!isset($train[$subj])) {
-                        $insTrain->execute([$subj, trim($r[19] ?? ''), trim($r[8] ?? '')]);
+                        $insTrain->execute([
+                            $subj, 
+                            trim($r[21] ?? ''),
+                            trim($r[9] ?? '')
+                        ]);
                         $train[$subj] = $this->db->lastInsertId();
                     }
                     $tid = $train[$subj];
 
-                    $sk = $tid . '|' . trim($r[3] ?? '') . '|' . $ds;
+
+                    $codeSub = trim($r[4] ?? '');
+                    $sk = $tid . '|' . $codeSub . '|' . $ds;
+                    
                     if (!isset($sess[$sk])) {
-                        $de = $this->parseDate($r[5] ?? null) ?: $ds;
-                        $rawCredit = $r[6] ?? 0;
+                        $de = $this->parseDate($r[6] ?? null) ?: $ds;
+                        $rawCredit = $r[7] ?? 0;
                         $creditHours = (float)(is_numeric($rawCredit) ? $rawCredit : str_replace(',', '.', $rawCredit));
                         
                         $insSess->execute([
-                            $tid, trim($r[3] ?? ''), trim($r[10] ?? ''),
-                            $ds, $de, $creditHours, trim($r[7] ?? ''), trim($r[9] ?? '')
+                            $tid, 
+                            $codeSub, 
+                            '',
+                            $ds, 
+                            $de, 
+                            $creditHours, 
+                            trim($r[8] ?? ''),
+                            trim($r[10] ?? '')
                         ]);
                         $sess[$sk] = $this->db->lastInsertId();
                     }
@@ -154,11 +166,11 @@ class Importer {
                     
                     $sqlKeys[] = "($excelRow, $sid, $kid, $q_name, $q_subj, $q_ds)";
 
-                    $v_pre  = $this->f($r[14] ?? null);
-                    $v_post = $this->f($r[15] ?? null);
-                    $v_sub  = $this->f($r[11] ?? null);
-                    $v_ins  = $this->f($r[12] ?? null);
-                    $v_inf  = $this->f($r[13] ?? null);
+                    $v_pre  = $this->f($r[11] ?? null);
+                    $v_post = $this->f($r[12] ?? null);
+                    $v_sub  = $this->f($r[15] ?? null);
+                    $v_ins  = $this->f($r[16] ?? null);
+                    $v_inf  = $this->f($r[17] ?? null);
 
                     $sqlScores[] = "($sid, $kid, $bid, $fid, $v_pre, $v_post, $v_sub, $v_ins, $v_inf)";
 
@@ -194,12 +206,7 @@ class Importer {
             return [
                 'status' => 'success',
                 'message' => "Processed in <b>{$time}s</b> | Total: {$processed} | Inserted: {$inserted} | Updated: {$updated}",
-                'stats' => [
-                    'total' => $processed,
-                    'unique' => $inserted,
-                    'duplicates' => $updated,
-                    'skipped' => $rowsSkipped
-                ]
+                'stats' => ['total' => $processed, 'unique' => $inserted, 'duplicates' => $updated, 'skipped' => $rowsSkipped]
             ];
 
         } catch (\Exception $e) {
@@ -212,9 +219,7 @@ class Importer {
         try {
             $stmt = $this->db->query("SELECT * FROM uploads ORDER BY upload_time DESC LIMIT $limit");
             return $stmt->fetchAll();
-        } catch (\Exception $e) {
-            return [];
-        }
+        } catch (\Exception $e) { return []; }
     }
 }
 ?>
