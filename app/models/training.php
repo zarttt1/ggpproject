@@ -352,5 +352,17 @@ class Training {
             return false;
         }
     }
+
+    public function getParticipantsForExport($id) {
+        $sql = "SELECT k.index_karyawan, k.nama_karyawan, f.func_n2, s.pre, s.post
+                FROM score s
+                JOIN karyawan k ON s.id_karyawan = k.id_karyawan
+                LEFT JOIN func f ON s.id_func = f.id_func
+                WHERE s.id_session = ?
+                ORDER BY k.nama_karyawan ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetchAll();
+    }
 }
 ?>

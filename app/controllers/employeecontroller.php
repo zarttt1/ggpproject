@@ -1,6 +1,9 @@
 <?php
 // app/controllers/EmployeeController.php
 
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 require_once __DIR__ . '/../models/Employee.php';
 require_once __DIR__ . '/../models/Training.php';
 
@@ -240,6 +243,65 @@ class EmployeeController {
             echo '<tr><td colspan="8" style="text-align:center; padding: 25px; color:#888;">No training history found.</td></tr>';
         }
         return ob_get_clean();
+    }
+
+    public function exportHistory() {
+        $this->checkAuth();
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id === 0) exit("Invalid ID");
+
+        // 1. Fetch Data
+        $user = $this->empModel->getEmployeeById($id);
+        if (!$user) exit("Employee not found");
+
+        // Get all history (limit 1000)
+        $history = $this->empModel->getTrainingHistory($id, '', 1, 1000); 
+
+        // 2. Load Template
+        $templatePath = __DIR__ . '/../../uploads/Employee Reports.xlsx';
+        if (!file_exists($templatePath)) exit("Template not found at: $templatePath");
+
+        $spreadsheet = IOFactory::load($templatePath);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $sheet->setCellValue('C7', ': ' . $user['index_karyawan']);
+        $sheet->setCellValue('C8', ': ' . $user['nama_karyawan']);
+        $sheet->setCellValue('C9', ': ' . ($user['bu'] ?? '-'));
+        $sheet->setCellValue('C10', ': ' . ($user['func'] ?? '-'));
+        $sheet->setCellValue('C11', ': ' . ($user['func2'] ?? '-'));
+
+        $row = 14;
+        $no = 1;
+
+        if (!empty($history['data'])) {
+            foreach ($history['data'] as $h) {
+                $sheet->setCellValue('A' . $row, $no);
+                $sheet->setCellValue('B' . $row, $h['nama_training']);
+                $sheet->setCellValue('C' . $row, date('d-M-Y', strtotime($h['date_start'])));
+                $sheet->setCellValue('D' . $row, $h['training_type'] ?? 'Internal');
+                $sheet->setCellValue('E' . $row, $h['method'] ?? 'Offline');
+                $sheet->setCellValue('F' . $row, $h['pre']);
+                $sheet->setCellValue('G' . $row, $h['post']);
+
+                $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle("A$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("C$row:G$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                $row++;
+                $no++;
+            }
+        }
+
+        $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $user['nama_karyawan']);
+        $filename = "History_" . $cleanName . ".xlsx";
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="'. $filename .'"');
+        header('Cache-Control: max-age=0');
+
+        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $writer->save('php://output');
+        exit;
     }
 }
 ?>

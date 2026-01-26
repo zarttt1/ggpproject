@@ -304,8 +304,7 @@
                         <img src="public/icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                         <input type="text" id="searchInput" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
-                    <a href="export_session.php?id=<?php echo $id; ?>" id="exportBtn" class="btn-export">
-                        <img src="public/icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
+                    <a href="index.php?action=export_session&id=<?php echo $id; ?>" id="exportBtn" class="btn-export">                        <img src="public/icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                     </a>
                 </div>
             </div>
@@ -483,7 +482,7 @@
 
         const performSearch = debounce(function() {
             const query = searchInput.value;
-            exportBtn.href = `export_session.php?id=${sessionId}&search=${encodeURIComponent(query)}`;
+            exportBtn.href = `index.php?action=export_session&id=${sessionId}&search=${encodeURIComponent(query)}`;
             fetchData(query, 1);
         }, 300);
 

@@ -1,6 +1,9 @@
 <?php
 // app/controllers/ReportController.php
 
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 require_once __DIR__ . '/../models/Training.php';
 
 class ReportController {
@@ -294,5 +297,80 @@ class ReportController {
         <?php
         return ob_get_clean();
     }
+
+   public function exportSession() {
+    $this->checkAuth();
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if ($id === 0) exit("Invalid ID");
+
+    $meta = $this->trainingModel->getSessionById($id);
+    if (!$meta) exit("Session not found");
+
+    $stats = $this->trainingModel->getSessionStats($id);
+    $participants = $this->trainingModel->getParticipantsForExport($id);
+
+    $templatePath = __DIR__ . '/../../uploads/Training Reports.xlsx';
+
+    if (!file_exists($templatePath)) {
+        $templatePath = __DIR__ . '/../../public/Training Reports.xlsx';
+        if (!file_exists($templatePath)) exit("Template not found.");
+    }
+
+    $spreadsheet = IOFactory::load($templatePath);
+    $sheet = $spreadsheet->getActiveSheet();
+
+    $sheet->setCellValue('C7', ': ' . $meta['nama_training']);
+    $sheet->setCellValue('C8', ': ' . date('d M Y', strtotime($meta['date_start'])));
+    $sheet->setCellValue('C9', ': ' . $stats['total'] . ' Orang');
+    $sheet->setCellValue('F7', ': ' . $meta['code_sub']);
+
+    $scores = [
+        '12' => $stats['avg_subject'],
+        '13' => $stats['avg_instructor'],
+        '14' => $stats['avg_infras']
+    ];
+
+    foreach ($scores as $rowIdx => $scoreValue) {
+        $val = (float)$scoreValue;
+        $sheet->setCellValue('C' . $rowIdx, ': ' . number_format($val, 2));
+
+        if ($val >= 8.51) $ket = "SANGAT BAIK";
+        elseif ($val >= 7.01) $ket = "BAIK";
+        elseif ($val >= 5.01) $ket = "CUKUP";
+        elseif ($val >= 3.01) $ket = "KURANG";
+        else $ket = "SGT KURANG";
+
+        $sheet->setCellValue('E' . $rowIdx, ': ' . $ket);
+    }
+
+    $row = 17;
+    $no = 1;
+    foreach ($participants as $p) {
+        $sheet->setCellValue('A' . $row, $no);
+        $sheet->setCellValue('B' . $row, $p['index_karyawan']);
+        $sheet->setCellValue('C' . $row, $p['nama_karyawan']);
+        $sheet->setCellValue('D' . $row, $p['func_n2']); 
+        $sheet->setCellValue('E' . $row, $p['pre']);
+        $sheet->setCellValue('F' . $row, $p['post']);
+
+        $status = ($p['post'] >= 75) ? "Lulus" : "Remedial";
+        $sheet->setCellValue('G' . $row, $status);
+
+        $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $row++;
+        $no++;
+    }
+
+    $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $meta['nama_training']);
+    $filename = "Report_" . $cleanName . ".xlsx";
+
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment;filename="'. $filename .'"');
+    header('Cache-Control: max-age=0');
+
+    $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+    $writer->save('php://output');
+    exit;
+}
 }
 ?>

@@ -194,7 +194,7 @@
                         <img src="public/icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
                         <input type="text" id="searchInput" placeholder="Search training..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
-                    <a href="export_employee_report.php?id_karyawan=<?php echo $id; ?>" id="exportBtn" class="btn-export">
+                    <a href="index.php?action=export_employee&id=<?php echo $id; ?>&search=<?php echo urlencode($search); ?>" id="exportBtn" class="btn-export">
                         <img src="public/icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                     </a>
                 </div>
@@ -268,7 +268,7 @@
         }
 
         function fetchData(query, page) {
-            exportBtn.href = `export_employee_report.php?id_karyawan=${empId}&search=${encodeURIComponent(query)}`;
+            exportBtn.href = `index.php?action=export_employee&id=${empId}&search=${encodeURIComponent(query)}`;
             
             fetch(`index.php?action=employee_history_search&id=${empId}&ajax_search=${encodeURIComponent(query)}&page=${page}`)
                 .then(response => response.json())
