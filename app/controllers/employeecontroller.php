@@ -250,14 +250,11 @@ class EmployeeController {
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         if ($id === 0) exit("Invalid ID");
 
-        // 1. Fetch Data
         $user = $this->empModel->getEmployeeById($id);
         if (!$user) exit("Employee not found");
 
-        // Get all history (limit 1000)
         $history = $this->empModel->getTrainingHistory($id, '', 1, 1000); 
 
-        // 2. Load Template
         $templatePath = __DIR__ . '/../../uploads/Employee Reports.xlsx';
         if (!file_exists($templatePath)) exit("Template not found at: $templatePath");
 
