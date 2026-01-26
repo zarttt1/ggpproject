@@ -1,257 +1,3 @@
-<?php
-session_start();
-require 'db_connect.php'; 
-
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-
-$username = $_SESSION['username'] ?? 'User';
-$initials = strtoupper(substr($username, 0, 2));
-
-// --- HELPER FUNCTION: Smart Date Formatting ---
-function formatDateRange($start_date, $end_date) {
-    if (empty($start_date)) return '-';
-    
-    $start = strtotime($start_date);
-    $end = (!empty($end_date) && $end_date != '0000-00-00') ? strtotime($end_date) : $start;
-
-    if (date('Y-m-d', $start) === date('Y-m-d', $end)) {
-        return date('M d, Y', $start);
-    }
-
-    if (date('Y', $start) === date('Y', $end)) {
-        if (date('M', $start) === date('M', $end)) {
-            return date('M d', $start) . ' - ' . date('d, Y', $end);
-        }
-        return date('M d', $start) . ' - ' . date('M d, Y', $end);
-    }
-
-    return date('M d, Y', $start) . ' - ' . date('M d, Y', $end);
-}
-
-// --- GET PARAMETERS ---
-$search = $_GET['search'] ?? '';
-$filter_category = $_GET['category'] ?? 'All Categories'; 
-$filter_type = $_GET['type'] ?? 'All Types'; 
-$filter_method = $_GET['method'] ?? 'All Methods';
-$filter_code = $_GET['code'] ?? 'All Codes'; 
-$start_date = $_GET['start'] ?? '';
-$end_date = $_GET['end'] ?? '';
-
-// Check active filters for button styling
-$has_active_filters = (
-    $filter_category !== 'All Categories' || 
-    $filter_type !== 'All Types' || 
-    $filter_method !== 'All Methods' || 
-    $filter_code !== 'All Codes' || 
-    !empty($start_date) || 
-    !empty($end_date)
-);
-
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$limit = 10;
-$offset = ($page - 1) * $limit;
-
-// --- AJAX HANDLER (Live Search) ---
-if (isset($_GET['ajax_search'])) {
-    $search_term = $_GET['ajax_search'];
-    $where_ajax = ["1=1"];
-    $params = [];
-
-    if (!empty($search_term)) {
-        $where_ajax[] = "(t.nama_training LIKE ? OR ts.code_sub LIKE ?)";
-        $params[] = "%$search_term%";
-        $params[] = "%$search_term%";
-    }
-    
-    if (isset($_GET['category']) && $_GET['category'] !== 'All Categories') {
-        $where_ajax[] = "t.jenis = ?";
-        $params[] = $_GET['category'];
-    }
-    if (isset($_GET['type']) && $_GET['type'] !== 'All Types') {
-        $where_ajax[] = "t.type = ?";
-        $params[] = $_GET['type'];
-    }
-    if (isset($_GET['method']) && $_GET['method'] !== 'All Methods') {
-        $where_ajax[] = "ts.method = ?";
-        $params[] = $_GET['method'];
-    }
-    if (isset($_GET['code']) && $_GET['code'] !== 'All Codes') {
-        $where_ajax[] = "ts.code_sub = ?";
-        $params[] = $_GET['code'];
-    }
-    if (isset($_GET['start']) && !empty($_GET['start'])) {
-        $where_ajax[] = "ts.date_start >= ?";
-        $params[] = $_GET['start'];
-    }
-    if (isset($_GET['end']) && !empty($_GET['end'])) {
-        $where_ajax[] = "ts.date_start <= ?";
-        $params[] = $_GET['end'];
-    }
-    
-    $where_sql_ajax = implode(' AND ', $where_ajax);
-
-    // Count Total
-    $count_sql = "SELECT COUNT(DISTINCT ts.id_session) FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql_ajax";
-    $stmtCount = $pdo->prepare($count_sql);
-    $stmtCount->execute($params);
-    $total_records = $stmtCount->fetchColumn();
-    $total_pages = ceil($total_records / $limit);
-    
-    // Fetch Data
-    $data_sql = "
-        SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
-               COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
-        FROM training_session ts
-        JOIN training t ON ts.id_training = t.id_training
-        LEFT JOIN score s ON ts.id_session = s.id_session
-        WHERE $where_sql_ajax
-        GROUP BY ts.id_session
-        ORDER BY ts.date_start DESC
-        LIMIT $limit OFFSET $offset 
-    "; 
-    $stmtData = $pdo->prepare($data_sql);
-    $stmtData->execute($params);
-    $results = $stmtData->fetchAll();
-
-    ob_start();
-    if (count($results) > 0) {
-        foreach($results as $row) {
-            $category = $row['category'] ?? '';
-            $method = $row['method'] ?? '';
-            $training_type = $row['training_type'] ?? '';
-            
-            $catClass = (stripos($category, 'Technical') !== false) ? 'type-tech' : ((stripos($category, 'Soft') !== false) ? 'type-soft' : 'type-default');
-            $methodClass = (stripos($method, 'Inclass') !== false) ? 'method-inclass' : 'method-online';
-            $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
-            
-            $date_display = formatDateRange($row['date_start'] ?? '', $row['date_end'] ?? '');
-            ?>
-            <tr>
-                <td>
-                    <div class="training-cell">
-                        <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
-                        <div>
-                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training'] ?? ''); ?></div>
-                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub'] ?? ''); ?></div>
-                        </div>
-                    </div>
-                </td>
-                <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
-                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span></td>
-                <td><span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span></td>
-                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span></td>
-                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour'] ?? '0'); ?></td>
-                <td style="text-align:center;"><?php echo $row['participants']; ?></td>
-                <td class="score"><?php echo $avgScore; ?></td>
-                <td>
-                    <button class="btn-view" onclick="window.location.href='tdetails.php?id=<?php echo $row['id_session']; ?>'">
-                        <span>View Details</span>
-                        <svg><rect x="0" y="0"></rect></svg>
-                    </button>
-                </td>
-            </tr>
-            <?php
-        }
-    } else {
-        echo '<tr><td colspan="9" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>';
-    }
-    $table_html = ob_get_clean();
-
-    ob_start();
-    ?>
-    <div>Showing <?php echo ($total_records > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records</div>
-    <div class="pagination-controls">
-        <?php if($page > 1): $prev = $page - 1; echo "<a href='#' onclick='changePage($prev); return false;' class='btn-next' style='transform: rotate(180deg); display:inline-block;'><i data-lucide='chevron-right' style='width:16px;'></i></a>"; endif; ?>
-        
-        <?php for($i=1; $i<=$total_pages; $i++): ?>
-            <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
-                <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
-            <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
-                <span class="dots">...</span>
-            <?php endif; ?>
-        <?php endfor; ?>
-
-        <?php if($page < $total_pages): $next = $page + 1; echo "<a href='#' onclick='changePage($next); return false;' class='btn-next'>Next <i data-lucide='chevron-right' style='width:16px;'></i></a>"; endif; ?>
-    </div>
-    <?php
-    $pagination_html = ob_get_clean();
-
-    echo json_encode(['table' => $table_html, 'pagination' => $pagination_html]);
-    exit;
-}
-
-// --- STANDARD LOAD QUERY ---
-$where_clauses = ["1=1"];
-$params = [];
-
-if (!empty($search)) {
-    $where_clauses[] = "(t.nama_training LIKE ? OR ts.code_sub LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-}
-if ($filter_category !== 'All Categories') {
-    $where_clauses[] = "t.jenis = ?";
-    $params[] = $filter_category;
-}
-if ($filter_type !== 'All Types') {
-    $where_clauses[] = "t.type = ?";
-    $params[] = $filter_type;
-}
-if ($filter_method !== 'All Methods') {
-    $where_clauses[] = "ts.method = ?";
-    $params[] = $filter_method;
-}
-if ($filter_code !== 'All Codes') {
-    $where_clauses[] = "ts.code_sub = ?";
-    $params[] = $filter_code;
-}
-
-if (!empty($start_date) && !empty($end_date)) {
-    $where_clauses[] = "ts.date_start >= ? AND ts.date_start <= ?";
-    $params[] = $start_date;
-    $params[] = $end_date;
-} elseif (!empty($start_date)) {
-    $where_clauses[] = "ts.date_start >= ?";
-    $params[] = $start_date;
-} elseif (!empty($end_date)) {
-    $where_clauses[] = "ts.date_start <= ?";
-    $params[] = $end_date;
-}
-
-$where_sql = implode(' AND ', $where_clauses);
-
-// Count Total
-$count_sql = "SELECT COUNT(DISTINCT ts.id_session) FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql";
-$stmtCount = $pdo->prepare($count_sql);
-$stmtCount->execute($params);
-$total_records = $stmtCount->fetchColumn();
-$total_pages = ceil($total_records / $limit);
-
-// Fetch Data
-$data_sql = "
-    SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
-           COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
-    FROM training_session ts
-    JOIN training t ON ts.id_training = t.id_training
-    LEFT JOIN score s ON ts.id_session = s.id_session
-    WHERE $where_sql
-    GROUP BY ts.id_session
-    ORDER BY ts.date_start DESC
-    LIMIT $limit OFFSET $offset
-";
-$stmtData = $pdo->prepare($data_sql);
-$stmtData->execute($params);
-$results = $stmtData->fetchAll();
-
-// Fetch Filter Options
-$categories_opt = $pdo->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis")->fetchAll();
-$types_opt = $pdo->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type")->fetchAll();
-$methods_opt = $pdo->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method")->fetchAll();
-$codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub")->fetchAll();
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -259,9 +5,8 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GGF - Training Sessions Report</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="icons/icon.png">
+    <link rel="icon" type="image/png" href="public/icons/icon.png">
     <style>
-        /* --- RESET & BASIC --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
 
@@ -275,7 +20,6 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
             box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
-        /* --- NAVBAR --- */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
@@ -298,7 +42,6 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
         }
         .btn-signout:hover { background-color: #b71c1c; }
 
-        /* --- TABLE CARD --- */
         .table-card { 
             background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); 
             overflow: hidden; margin-bottom: 40px; margin-top: 20px; 
@@ -394,7 +137,6 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
             border-radius: 50px; font-size: 13px; outline: none; color: #333; font-family: 'Poppins', sans-serif;
             background-color: #fff; cursor: pointer; transition: all 0.2s; position: relative;
         }
-        /* FIX FOR DATE PICKER: Make full button clickable & hide default icon */
         .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
             width: 100%; height: 100%; color: transparent; background: transparent; cursor: pointer;
@@ -447,21 +189,21 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
 
     <div class="main-wrapper">
         <nav class="navbar">
-            <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
+            <div class="logo-section"><img src="public/GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
-                <a href="dashboard.php">Dashboard</a>
-                <a href="reports.php" class="active">Trainings</a>
-                <a href="employee_reports.php">Employees</a>
+                <a href="index.php?action=dashboard">Dashboard</a>
+                <a href="index.php?action=reports" class="active">Trainings</a>
+                <a href="index.php?action=employees">Employees</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                    <a href="upload.php">Upload Data</a>
+                    <a href="index.php?action=upload">Upload Data</a>
                 <?php endif; ?>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                    <a href="users.php">Users</a>
+                    <a href="index.php?action=users">Users</a>
                 <?php endif; ?>
             </div>
             <div class="nav-right">
-                <div class="user-profile"><div class="avatar-circle"><?php echo $initials; ?></div></div>
-                <a href="logout.php" class="btn-signout">Sign Out</a>
+                <div class="user-profile"><div class="avatar-circle"><?php echo strtoupper(substr($_SESSION['username'] ?? 'User', 0, 2)); ?></div></div>
+                <a href="index.php?action=logout" class="btn-signout">Sign Out</a>
             </div>
         </nav>
 
@@ -470,12 +212,12 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                 <div class="table-title">Training Sessions Report</div>
                 <div class="table-actions">
                     <div class="search-box">
-                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
-                        <input type="text" id="liveSearchInput" placeholder="Search training..." value="<?php echo htmlspecialchars($search); ?>">
+                        <img src="public/icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
+                        <input type="text" id="liveSearchInput" placeholder="Search training..." value="<?php echo htmlspecialchars($filters['search']); ?>">
                     </div>
                     
                     <button class="btn-action-small <?php echo $has_active_filters ? 'active-filter' : ''; ?>" onclick="toggleDrawer()">
-                        <img src="icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Filter">
+                        <img src="public/icons/filter.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Filter">
                         Filters
                     </button>
                 </div>
@@ -497,73 +239,13 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                         </tr>
                     </thead>
                     <tbody id="tableBody">
-                        <?php if (count($results) > 0): ?>
-                            <?php foreach($results as $row): 
-                                $category = $row['category'] ?? '';
-                                $method = $row['method'] ?? '';
-                                $training_type = $row['training_type'] ?? '';
-                                
-                                $catClass = (stripos($category, 'Technical') !== false) ? 'type-tech' : ((stripos($category, 'Soft') !== false) ? 'type-soft' : 'type-default');
-                                $methodClass = (stripos($method, 'Inclass') !== false) ? 'method-inclass' : 'method-online';
-                                $avgScore = $row['avg_post'] ? number_format($row['avg_post'], 1) . '%' : '-';
-                                
-                                $date_display = formatDateRange($row['date_start'] ?? '', $row['date_end'] ?? '');
-                            ?>
-                            <tr>
-                                <td>
-                                    <div class="training-cell">
-                                        <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
-                                        <div>
-                                            <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training'] ?? ''); ?></div>
-                                            <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub'] ?? ''); ?></div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
-                                <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span></td>
-                                <td><span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span></td>
-                                <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span></td>
-                                <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour'] ?? '0'); ?></td>
-                                <td style="text-align:center;"><?php echo $row['participants']; ?></td>
-                                <td class="score"><?php echo $avgScore; ?></td>
-                                <td>
-                                    <button class="btn-view" onclick="window.location.href='tdetails.php?id=<?php echo $row['id_session']; ?>'">
-                                        <span>View Details</span>
-                                        <svg><rect x="0" y="0"></rect></svg>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr><td colspan="9" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>
-                        <?php endif; ?>
+                        <?php echo $this->renderTableRows($results); ?>
                     </tbody>
                 </table>
             </div>
 
             <div class="pagination-container">
-                <div>Showing <?php echo ($total_records > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_records); ?> of <?php echo $total_records; ?> Records</div>
-                <div class="pagination-controls">
-                    <?php if($page > 1): $prev = $page - 1; ?>
-                        <a href="#" onclick="changePage(<?php echo $prev; ?>); return false;" class="btn-next" style="transform: rotate(180deg); display:inline-block;">
-                            <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
-                        </a>
-                    <?php endif; ?>
-                    
-                    <?php for($i=1; $i<=$total_pages; $i++): ?>
-                        <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
-                            <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
-                        <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
-                            <span class="dots">...</span>
-                        <?php endif; ?>
-                    <?php endfor; ?>
-
-                    <?php if($page < $total_pages): $next = $page + 1; ?>
-                        <a href="#" onclick="changePage(<?php echo $next; ?>); return false;" class="btn-next">
-                            Next <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
-                        </a>
-                    <?php endif; ?>
-                </div>
+                <?php echo $this->renderPagination($data); ?>
             </div>
         </div>
     </div>
@@ -580,11 +262,11 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                 <div class="date-row">
                     <div class="date-input-wrapper">
                         <i data-lucide="calendar" class="date-icon"></i>
-                        <input type="date" id="startDate" value="<?php echo $start_date; ?>">
+                        <input type="date" id="startDate" value="<?php echo $filters['start']; ?>">
                     </div>
                     <div class="date-input-wrapper">
                         <i data-lucide="calendar" class="date-icon"></i>
-                        <input type="date" id="endDate" value="<?php echo $end_date; ?>">
+                        <input type="date" id="endDate" value="<?php echo $filters['end']; ?>">
                     </div>
                 </div>
             </div>
@@ -594,8 +276,8 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                 <select id="filterCategory">
                     <option value="All Categories">All Categories</option>
                     <?php foreach($categories_opt as $t): ?>
-                        <option value="<?php echo htmlspecialchars($t['jenis']); ?>" <?php if($filter_category == $t['jenis']) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($t['jenis']); ?>
+                        <option value="<?php echo htmlspecialchars($t); ?>" <?php if($filters['category'] == $t) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($t); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -606,8 +288,8 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                 <select id="filterType">
                     <option value="All Types">All Types</option>
                     <?php foreach($types_opt as $t): ?>
-                        <option value="<?php echo htmlspecialchars($t['type']); ?>" <?php if($filter_type == $t['type']) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($t['type']); ?>
+                        <option value="<?php echo htmlspecialchars($t); ?>" <?php if($filters['type'] == $t) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($t); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -618,8 +300,8 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                 <select id="filterMethod">
                     <option value="All Methods">All Methods</option>
                     <?php foreach($methods_opt as $m): ?>
-                        <option value="<?php echo htmlspecialchars($m['method']); ?>" <?php if($filter_method == $m['method']) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($m['method']); ?>
+                        <option value="<?php echo htmlspecialchars($m); ?>" <?php if($filters['method'] == $m) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($m); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -630,8 +312,8 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                 <select id="filterCode">
                     <option value="All Codes">All Codes</option>
                     <?php foreach($codes_opt as $c): ?>
-                        <option value="<?php echo htmlspecialchars($c['code_sub']); ?>" <?php if($filter_code == $c['code_sub']) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($c['code_sub']); ?>
+                        <option value="<?php echo htmlspecialchars($c); ?>" <?php if($filters['code'] == $c) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($c); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -639,7 +321,7 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
         </div>
         
         <div class="drawer-footer">
-            <button class="btn-reset" onclick="window.location.href='reports.php'">Reset</button>
+            <button class="btn-reset" onclick="window.location.href='index.php?action=reports'">Reset</button>
             <button class="btn-apply" onclick="applyFilters()">
                 <span>Apply Filters</span>
                 <svg><rect x="0" y="0"></rect></svg>
@@ -657,14 +339,14 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
 
         const searchInput = document.getElementById('liveSearchInput');
         const tableBody = document.getElementById('tableBody');
+        const paginationContainer = document.querySelector('.pagination-container');
         
-        // Capture current filters
-        const currentCategory = "<?php echo htmlspecialchars($filter_category); ?>";
-        const currentType = "<?php echo htmlspecialchars($filter_type); ?>";
-        const currentMethod = "<?php echo htmlspecialchars($filter_method); ?>";
-        const currentCode = "<?php echo htmlspecialchars($filter_code); ?>";
-        const currentStart = "<?php echo htmlspecialchars($start_date); ?>";
-        const currentEnd = "<?php echo htmlspecialchars($end_date); ?>";
+        const currentCategory = "<?php echo htmlspecialchars($filters['category']); ?>";
+        const currentType = "<?php echo htmlspecialchars($filters['type']); ?>";
+        const currentMethod = "<?php echo htmlspecialchars($filters['method']); ?>";
+        const currentCode = "<?php echo htmlspecialchars($filters['code']); ?>";
+        const currentStart = "<?php echo htmlspecialchars($filters['start']); ?>";
+        const currentEnd = "<?php echo htmlspecialchars($filters['end']); ?>";
 
         function changePage(page) {
             const query = searchInput.value;
@@ -672,8 +354,7 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
         }
 
         function fetchData(query, page = 1) {
-            // Include filters in AJAX URL
-            let url = `?ajax_search=${encodeURIComponent(query)}&page=${page}`;
+            let url = `index.php?action=report_search&ajax_search=${encodeURIComponent(query)}&page=${page}`;
             if(currentCategory !== 'All Categories') url += `&category=${encodeURIComponent(currentCategory)}`;
             if(currentType !== 'All Types') url += `&type=${encodeURIComponent(currentType)}`;
             if(currentMethod !== 'All Methods') url += `&method=${encodeURIComponent(currentMethod)}`;
@@ -685,7 +366,7 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
                 .then(response => response.json())
                 .then(data => {
                     tableBody.innerHTML = data.table;
-                    document.querySelector('.pagination-container').innerHTML = data.pagination;
+                    paginationContainer.innerHTML = data.pagination;
                     lucide.createIcons();
                 })
                 .catch(error => console.error('Error:', error));
@@ -723,6 +404,7 @@ $codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE c
             }
 
             const params = new URLSearchParams();
+            params.set('action', 'reports');
             if(search) params.set('search', search);
             if(category !== 'All Categories') params.set('category', category);
             if(type !== 'All Types') params.set('type', type);
