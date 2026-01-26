@@ -37,6 +37,14 @@ switch ($action) {
         $report->search(); 
         break;
 
+    case 'details':
+        $report->details();
+        break;
+
+    case 'details_search':
+        $report->detailsSearch();
+        break;
+
     default: header("Location: index.php?action=show_login"); exit();
 }
 ?>
