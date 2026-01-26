@@ -1,19 +1,18 @@
 <?php
-$conn = mysqli_init();
+require_once __DIR__ . '/vendor/autoload.php';
 
-// Use system CA certificates for the cloud connection
-mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL);
+use Dotenv\Dotenv;
+$dotenv = Dotenv::createImmutable(__DIR__);
+$dotenv->safeLoad();
 
-// Get cloud variables, or use local defaults if not found
-$host = getenv('DB_HOST') ?: "localhost";
-$user = getenv('DB_USER') ?: "root";
-$pass = getenv('DB_PASSWORD') ?: "Admin123";
-$name = getenv('DB_NAME') ?: "trainingc";
-$port = getenv('DB_PORT') ?: 3306;
+$host = $_ENV['DB_HOST'] ?? 'localhost';
+$user = $_ENV['DB_USER'] ?? 'root';
+$pass = $_ENV['DB_PASS'] ?? 'Admin123';
+$dbname = $_ENV['DB_NAME'] ?? 'ggpproject';
 
-mysqli_real_connect($conn, $host, $user, $pass, $name, $port);
+$conn = new mysqli($host, $user, $pass, $dbname);
 
-if (!$conn) {
-    die("Connection failed: " . mysqli_connect_error());
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 ?>

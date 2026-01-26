@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 // 2. Get User Details
 $username = $_SESSION['username'] ?? 'User';
 $initials = strtoupper(substr($username, 0, 2));
-$role = $_SESSION['role'] ?? 'user'; // Check role
+$role = $_SESSION['role'] ?? 'user';
 
 // Validate ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -25,20 +25,23 @@ $id_session = (int)$_GET['id'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_training'])) {
     $new_title = trim($_POST['title']);
     $new_code = trim($_POST['code']);
-    $new_date = $_POST['date'];
+    $new_credit = (int)$_POST['credit_hour'];
+    $new_start = $_POST['date_start'];
+    $new_end = $_POST['date_end'];
     
-    if (!empty($new_title) && !empty($new_code) && !empty($new_date)) {
+    if (!empty($new_title) && !empty($new_code) && !empty($new_start)) {
         // Update Training Name
         $stmt1 = $conn->prepare("UPDATE training t JOIN training_session ts ON t.id_training = ts.id_training SET t.nama_training = ? WHERE ts.id_session = ?");
         $stmt1->bind_param("si", $new_title, $id_session);
         $stmt1->execute();
+        $stmt1->close();
         
         // Update Session Details
-        $stmt2 = $conn->prepare("UPDATE training_session SET code_sub = ?, date_start = ? WHERE id_session = ?");
-        $stmt2->bind_param("ssi", $new_code, $new_date, $id_session);
+        $stmt2 = $conn->prepare("UPDATE training_session SET code_sub = ?, credit_hour = ?, date_start = ?, date_end = ? WHERE id_session = ?");
+        $stmt2->bind_param("sissi", $new_code, $new_credit, $new_start, $new_end, $id_session);
         $stmt2->execute();
+        $stmt2->close();
         
-        // Redirect to refresh data
         header("Location: tdetails.php?id=" . $id_session);
         exit();
     }
@@ -48,6 +51,23 @@ $search = $_GET['search'] ?? '';
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10;
 $offset = ($page - 1) * $limit;
+
+// --- HELPER FUNCTION: Smart Date Formatting ---
+function formatDateRange($start_date, $end_date) {
+    $start = strtotime($start_date);
+    $end = (!empty($end_date) && $end_date != '0000-00-00') ? strtotime($end_date) : $start;
+
+    if (date('Y-m-d', $start) === date('Y-m-d', $end)) {
+        return date('d M Y', $start);
+    }
+    if (date('Y', $start) === date('Y', $end)) {
+        if (date('M', $start) === date('M', $end)) {
+            return date('d', $start) . ' - ' . date('d M Y', $end);
+        }
+        return date('d M', $start) . ' - ' . date('d M Y', $end);
+    }
+    return date('d M Y', $start) . ' - ' . date('d M Y', $end);
+}
 
 // ==========================================
 //  AJAX HANDLER (For Live Search)
@@ -61,12 +81,10 @@ if (isset($_GET['ajax_search'])) {
         $where_search = " AND (k.nama_karyawan LIKE '%$safe_search%' OR k.index_karyawan LIKE '%$safe_search%')";
     }
 
-    // 1. Count Total
     $count_sql = "SELECT COUNT(*) as total FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan WHERE s.id_session = $id_session $where_search";
     $total_rows = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_rows / $limit);
 
-    // 2. Fetch Data
     $list_sql = "
         SELECT 
             k.index_karyawan, k.nama_karyawan,
@@ -82,7 +100,6 @@ if (isset($_GET['ajax_search'])) {
     ";
     $participants = $conn->query($list_sql);
 
-    // 3. Build Table Rows HTML
     ob_start();
     if ($participants->num_rows > 0) {
         while ($p = $participants->fetch_assoc()) {
@@ -112,7 +129,6 @@ if (isset($_GET['ajax_search'])) {
     }
     $table_html = ob_get_clean();
 
-    // 4. Build Pagination HTML
     ob_start();
     ?>
     <div>Showing <?php echo ($total_rows > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
@@ -132,7 +148,6 @@ if (isset($_GET['ajax_search'])) {
     <?php
     $pagination_html = ob_get_clean();
 
-    // Return JSON
     echo json_encode(['table' => $table_html, 'pagination' => $pagination_html]);
     exit();
 }
@@ -143,7 +158,7 @@ if (isset($_GET['ajax_search'])) {
 
 // --- 1. GET SESSION METADATA ---
 $meta_sql = "
-    SELECT t.nama_training, ts.code_sub, ts.date_start 
+    SELECT t.nama_training, ts.code_sub, ts.date_start, ts.date_end, ts.credit_hour 
     FROM training_session ts 
     JOIN training t ON ts.id_training = t.id_training 
     WHERE ts.id_session = $id_session
@@ -158,8 +173,10 @@ if ($meta_result->num_rows == 0) {
 $meta = $meta_result->fetch_assoc();
 $training_name = htmlspecialchars($meta['nama_training']);
 $code_sub = htmlspecialchars($meta['code_sub']);
-$training_date_raw = $meta['date_start'];
-$training_date = date('d M Y', strtotime($meta['date_start']));
+$credit_hour = htmlspecialchars($meta['credit_hour']);
+$date_start_raw = $meta['date_start'];
+$date_end_raw = $meta['date_end'];
+$display_date = formatDateRange($date_start_raw, $date_end_raw);
 
 // --- 2. CALCULATE STATS ---
 $stats_sql = "
@@ -320,44 +337,118 @@ $preHistData = [
         .table-title { font-weight: 600; font-size: 16px; }
         .table-actions { display: flex; gap: 12px; align-items: center; }
         .search-box { background-color: white; border-radius: 50px; height: 35px; width: 250px; display: flex; align-items: center; padding: 0 15px; }
-        .search-box img { width: 16px; height: 16px; margin-right: 8px; }
+        .search-box i { color: #197B40; width: 16px; height: 16px; }
         .search-box input { border: none; background: transparent; outline: none; height: 100%; flex: 1; padding-left: 10px; font-size: 13px; color: #333; }
         .btn-export { height: 35px; padding: 0 20px; border: none; border-radius: 50px; background: white; color: #197B40; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; text-decoration: none; }
         .btn-export:hover { background-color: #f0fdf4; }
 
         .table-responsive { flex-grow: 1; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; border-bottom: 1px solid #eee; text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; background: white; z-index: 10; }
+        th { text-align: left; padding: 15px 25px; font-size: 12px; color: #888; font-weight: 600; border-bottom: 1px solid #eee; }
         td { padding: 15px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         .user-cell { display: flex; align-items: center; gap: 10px; font-weight: 600; }
         .user-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: #197B40; color: white; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-        
         .badge-improvement { background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         .badge-decline { background-color: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
-        
-        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; border-top: 1px solid #f9f9f9; }
-        .pagination-controls { display: flex; align-items: center; gap: 8px; }
-        .page-num { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; text-decoration: none; color: #4a4a4a; font-weight: 500; }
-        .page-num.active { background-color: #197B40; color: white; }
-        .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
+        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; }
+        .page-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
+        .page-btn.active { background-color: #197B40; color: white; font-weight: 600; }
 
         /* --- MODAL STYLES --- */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
-        .modal { background: white; width: 400px; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); transform: scale(0.9); opacity: 0; transition: all 0.3s; }
+        .modal { background: white; width: 450px; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); transform: scale(0.9); opacity: 0; transition: all 0.3s; }
         .modal.open { transform: scale(1); opacity: 1; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-title { font-size: 18px; font-weight: 700; color: #333; }
         .modal-close { cursor: pointer; color: #888; transition: 0.2s; }
         .modal-close:hover { color: #333; }
+        
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
-        .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; outline: none; font-size: 14px; font-family: 'Poppins', sans-serif; }
+        /* Standard inputs */
+        .form-group input[type="text"], .form-group input[type="number"] { 
+            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; outline: none; font-size: 14px; font-family: 'Poppins', sans-serif; 
+        }
         .form-group input:focus { border-color: #197B40; }
+
+        /* DATE PILL STYLE (Matched to Reports) */
+        .date-row { display: flex; gap: 10px; }
+        .date-input-wrapper { position: relative; flex: 1; }
+        
+        .date-input-wrapper input[type="date"] { 
+            width: 100%; 
+            padding: 10px 15px 10px 40px; /* Left padding for icon */
+            border: 1px solid #e0e0e0; 
+            border-radius: 50px; /* PILL SHAPE */
+            font-size: 13px; 
+            outline: none; 
+            color: #333; 
+            font-family: 'Poppins', sans-serif;
+            background-color: #fff; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            position: relative;
+        }
+        
+        .date-input-wrapper input[type="date"]:hover, 
+        .date-input-wrapper input[type="date"]:focus {
+            border-color: #197B40; 
+            box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1);
+        }
+        
+        /* Make entire input click area for calendar */
+        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
+            width: 100%; height: 100%; color: transparent; background: transparent; cursor: pointer;
+        }
+        
+        .date-icon { 
+            position: absolute; left: 15px; top: 50%; transform: translateY(-50%); 
+            color: #197B40; width: 16px; pointer-events: none; z-index: 1; 
+        }
+
         .modal-footer { display: flex; gap: 10px; margin-top: 25px; }
-        .btn-save { flex: 1; background: #197B40; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-        .btn-save:hover { background: #145a32; }
-        .btn-cancel { flex: 1; background: #f3f4f7; color: #666; border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        
+        /* Cancel Button - Pill Shape */
+        .btn-cancel { 
+            flex: 1; 
+            background: #f3f4f7; 
+            color: #666; 
+            border: none; 
+            padding: 12px; 
+            border-radius: 50px; /* Pill */
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: 0.2s; 
+        }
         .btn-cancel:hover { background: #e0e0e0; }
+
+        /* Save Button - Pill + Snake Animation */
+        .btn-save { 
+            position: relative; /* Context for absolute SVG */
+            flex: 1; 
+            background: #197B40; 
+            color: white; 
+            border: none; 
+            padding: 12px; 
+            border-radius: 50px; /* Pill */
+            font-weight: 600; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 8px; 
+            transition: background 0.2s; 
+            overflow: visible; /* Important for stroke */
+        }
+
+        /* Snake Animation Elements */
+        .btn-save span { position: relative; z-index: 2; }
+        .btn-save svg { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); fill: none; pointer-events: none; overflow: visible; }
+        .btn-save rect { width: 100%; height: 100%; rx: 25px; ry: 25px; stroke: #FF9A02; stroke-width: 3; stroke-dasharray: 120, 380; stroke-dashoffset: 0; opacity: 0; transition: opacity 0.3s; }
+        .btn-save:hover { background: #145a32; }
+        .btn-save:hover rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
+        @keyframes snakeBorder { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
     </style>
 </head>
 <body>
@@ -367,10 +458,10 @@ $preHistData = [
             <div class="logo-section"><img src="GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="reports.php" class="active">Trainings</a>
+                <a href="reports.php">Trainings</a>
                 <a href="employee_reports.php">Employees</a>
+                <a href="upload.php">Upload Data</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                    <a href="upload.php">Upload Data</a>
                     <a href="users.php">Users</a>
                 <?php endif; ?>
             </div>
@@ -397,7 +488,7 @@ $preHistData = [
                         Code: <strong><?php echo $code_sub; ?></strong>
                     </div>
                     <div class="hero-meta">
-                        <i data-lucide="calendar" style="width:16px;"></i> <?php echo $training_date; ?>
+                        <i data-lucide="calendar" style="width:16px;"></i> <?php echo $display_date; ?>
                         <span style="margin: 0 10px;">|</span>
                         <i data-lucide="users" style="width:16px;"></i> <?php echo $total_participants; ?> Participants
                     </div>
@@ -439,6 +530,7 @@ $preHistData = [
                     </div>
                     <div class="sat-value"><?php echo $sat_subject; ?></div>
                 </div>
+
                 <div class="stat-card-small">
                     <div class="sat-left">
                         <div class="sat-icon-box" style="background:#e8f5e9; color:#2e7d32;"><i data-lucide="user-check"></i></div>
@@ -446,6 +538,7 @@ $preHistData = [
                     </div>
                     <div class="sat-value"><?php echo $sat_instructor; ?></div>
                 </div>
+
                 <div class="stat-card-small">
                     <div class="sat-left">
                         <div class="sat-icon-box" style="background:#fff3e0; color:#f57c00;"><i data-lucide="building-2"></i></div>
@@ -489,79 +582,61 @@ $preHistData = [
                 <div class="table-title">Full Participant List</div>
                 <div class="table-actions">
                     <div class="search-box">
-                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;" alt="Search">
+                        <img src="icons/search.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                         <input type="text" id="searchInput" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
-                    <a href="export_report.php?id=<?php echo $id_session; ?>" id="exportBtn" class="btn-export">
+                    <a href="export_session.php?id=<?php echo $id_session; ?>" id="exportBtn" class="btn-export">
                         <img src="icons/excel.ico" style="width: 26px; height: 26px; transform: scale(1.8); margin-right: 4px;">
                     </a>
                 </div>
             </div>
-            <div class="table-responsive">
-                <table>
-                    <thead>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Index</th>
+                        <th>Name</th>
+                        <th>BU</th>
+                        <th>Function</th>
+                        <th style="text-align:center;">Pre-Test</th>
+                        <th style="text-align:center;">Post-Test</th>
+                        <th style="text-align:center;">Improvement</th>
+                    </tr>
+                </thead>
+                <tbody id="participantTableBody">
+                    <?php if($participants->num_rows > 0): ?>
+                        <?php while($p = $participants->fetch_assoc()): 
+                            $improvement = $p['post'] - $p['pre'];
+                            $impSign = ($improvement > 0) ? '+' : '';
+                            $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
+                            $initials = strtoupper(substr($p['nama_karyawan'], 0, 1) . substr(explode(' ', $p['nama_karyawan'])[1] ?? '', 0, 1));
+                        ?>
                         <tr>
-                            <th>Index</th>
-                            <th>Name</th>
-                            <th>BU</th>
-                            <th>Function</th>
-                            <th style="text-align:center;">Pre-Test</th>
-                            <th style="text-align:center;">Post-Test</th>
-                            <th style="text-align:center;">Improvement</th>
+                            <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
+                            <td>
+                                <div class="user-cell">
+                                    <div class="user-avatar"><?php echo $initials; ?></div> 
+                                    <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($p['nama_karyawan']); ?></span>
+                                </div>
+                            </td>
+                            <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['nama_bu']); ?></span></td>
+                            <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['func_n1']); ?></span></td>
+                            <td style="text-align:center; color:#888;"><?php echo $p['pre']; ?></td>
+                            <td style="text-align:center;"><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
+                            <td style="text-align:center;"><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
                         </tr>
-                    </thead>
-                    <tbody id="participantTableBody">
-                        <?php if($participants->num_rows > 0): ?>
-                            <?php while($p = $participants->fetch_assoc()): 
-                                $improvement = $p['post'] - $p['pre'];
-                                $impSign = ($improvement > 0) ? '+' : '';
-                                $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
-                                $initials = strtoupper(substr($p['nama_karyawan'], 0, 1) . substr(explode(' ', $p['nama_karyawan'])[1] ?? '', 0, 1));
-                            ?>
-                            <tr>
-                                <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
-                                <td>
-                                    <div class="user-cell">
-                                        <div class="user-avatar"><?php echo $initials; ?></div> 
-                                        <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($p['nama_karyawan']); ?></span>
-                                    </div>
-                                </td>
-                                <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['nama_bu']); ?></span></td>
-                                <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['func_n1']); ?></span></td>
-                                <td style="text-align:center; color:#888;"><?php echo $p['pre']; ?></td>
-                                <td style="text-align:center;"><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
-                                <td style="text-align:center;"><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No participants found.</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr><td colspan="7" style="text-align:center; padding: 20px; color:#888;">No participants found.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
 
             <div class="pagination-container" id="paginationContainer">
                 <div>Showing <?php echo ($total_rows > 0 ? $offset + 1 : 0); ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> Records</div>
                 <div class="pagination-controls">
-                    <?php if($page > 1): $prev = $page - 1; ?>
-                        <a href="#" onclick="changePage(<?php echo $prev; ?>); return false;" class="btn-next" style="transform: rotate(180deg); display:inline-block;">
-                            <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
-                        </a>
-                    <?php endif; ?>
-                    
-                    <?php for($i=1; $i<=$total_pages; $i++): ?>
-                        <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 1 && $i <= $page + 1)): ?>
-                            <a href="#" onclick="changePage(<?php echo $i; ?>); return false;" class="page-num <?php if($i==$page) echo 'active'; ?>"><?php echo $i; ?></a>
-                        <?php elseif ($i == $page - 2 || $i == $page + 2): ?>
-                            <span class="dots">...</span>
-                        <?php endif; ?>
-                    <?php endfor; ?>
-
-                    <?php if($page < $total_pages): $next = $page + 1; ?>
-                        <a href="#" onclick="changePage(<?php echo $next; ?>); return false;" class="btn-next">
-                            Next <i data-lucide="chevron-right" style="width:16px; height:16px;"></i>
-                        </a>
-                    <?php endif; ?>
+                    <?php if($page > 1): $prev = $page - 1; echo "<a href='?id=$id_session&page=$prev&search=$search' class='page-btn'>&lt;</a>"; endif; ?>
+                    <a href="#" class="page-btn active"><?php echo $page; ?></a>
+                    <?php if($page < $total_pages): $next = $page + 1; echo "<a href='?id=$id_session&page=$next&search=$search' class='page-btn'>&gt;</a>"; endif; ?>
                 </div>
             </div>
         </div>
@@ -582,13 +657,32 @@ $preHistData = [
                     <label>Sub Code</label>
                     <input type="text" name="code" value="<?php echo $code_sub; ?>" required>
                 </div>
+                
                 <div class="form-group">
-                    <label>Date</label>
-                    <input type="date" name="date" value="<?php echo $training_date_raw; ?>" required>
+                    <label>Credit Hours</label>
+                    <input type="number" name="credit_hour" value="<?php echo $credit_hour; ?>" min="0" required>
                 </div>
+
+                <div class="form-group">
+                    <label>Training Duration</label>
+                    <div class="date-row">
+                        <div class="date-input-wrapper">
+                             <i data-lucide="calendar" class="date-icon"></i>
+                             <input type="date" name="date_start" value="<?php echo $date_start_raw; ?>" required>
+                        </div>
+                        <div class="date-input-wrapper">
+                             <i data-lucide="calendar" class="date-icon"></i>
+                             <input type="date" name="date_end" value="<?php echo $date_end_raw; ?>" required>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="modal-footer">
                     <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
-                    <button type="submit" name="update_training" class="btn-save">Save Changes</button>
+                    <button type="submit" name="update_training" class="btn-save">
+                        <span>Save Changes</span>
+                        <svg><rect x="0" y="0"></rect></svg>
+                    </button>
                 </div>
             </form>
         </div>
@@ -597,6 +691,64 @@ $preHistData = [
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         lucide.createIcons();
+
+        // --- CHART CONFIGURATION ---
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    titleFont: { family: 'Poppins' },
+                    bodyFont: { family: 'Poppins' }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { borderDash: [5, 5], color: '#f0f0f0' },
+                    ticks: { font: { family: 'Poppins' }, precision: 0 }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { family: 'Poppins' } }
+                }
+            }
+        };
+
+        const labels = <?php echo json_encode($histLabels); ?>;
+
+        // 1. Pre-Test Chart
+        new Chart(document.getElementById('preHistogram'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Participants',
+                    data: <?php echo json_encode($preHistData); ?>,
+                    backgroundColor: '#FF9A02', // Orange for Pre-Test
+                    borderRadius: 5,
+                    barPercentage: 0.8
+                }]
+            },
+            options: commonOptions
+        });
+
+        // 2. Post-Test Chart
+        new Chart(document.getElementById('postHistogram'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Participants',
+                    data: <?php echo json_encode($postHistData); ?>,
+                    backgroundColor: '#197B40', // Green for Post-Test
+                    borderRadius: 5,
+                    barPercentage: 0.8
+                }]
+            },
+            options: commonOptions
+        });
 
         // --- MODAL LOGIC ---
         function openEditModal() {
@@ -607,58 +759,12 @@ $preHistData = [
         }
 
         function closeEditModal(e) {
-            if (e && e.target !== e.currentTarget) return; // Prevent closing if clicking inside modal
+            if (e && e.target !== e.currentTarget) return; 
             document.getElementById('editModal').classList.remove('open');
             setTimeout(() => {
                 document.getElementById('editModalOverlay').style.display = 'none';
             }, 300);
         }
-
-        // --- CHART CONFIGURATION ---
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: { titleFont: { family: 'Poppins' }, bodyFont: { family: 'Poppins' } }
-            },
-            scales: {
-                y: { beginAtZero: true, grid: { borderDash: [5, 5], color: '#f0f0f0' }, ticks: { font: { family: 'Poppins' }, precision: 0 } },
-                x: { grid: { display: false }, ticks: { font: { family: 'Poppins' } } }
-            }
-        };
-
-        const labels = <?php echo json_encode($histLabels); ?>;
-
-        new Chart(document.getElementById('preHistogram'), {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Participants',
-                    data: <?php echo json_encode($preHistData); ?>,
-                    backgroundColor: '#FF9A02',
-                    borderRadius: 5,
-                    barPercentage: 0.8
-                }]
-            },
-            options: commonOptions
-        });
-
-        new Chart(document.getElementById('postHistogram'), {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Participants',
-                    data: <?php echo json_encode($postHistData); ?>,
-                    backgroundColor: '#197B40',
-                    borderRadius: 5,
-                    barPercentage: 0.8
-                }]
-            },
-            options: commonOptions
-        });
 
         // --- LIVE SEARCH SCRIPT ---
         const searchInput = document.getElementById('searchInput');
@@ -666,24 +772,6 @@ $preHistData = [
         const paginationContainer = document.getElementById('paginationContainer');
         const exportBtn = document.getElementById('exportBtn');
         const sessionId = "<?php echo $id_session; ?>";
-
-        function changePage(page) {
-            const query = searchInput.value;
-            fetchData(query, page);
-        }
-
-        function fetchData(query, page) {
-            exportBtn.href = `export_session.php?id=${sessionId}&search=${encodeURIComponent(query)}`;
-            
-            fetch(`?id=${sessionId}&ajax_search=${encodeURIComponent(query)}&page=${page}`)
-                .then(response => response.json())
-                .then(data => {
-                    tableBody.innerHTML = data.table;
-                    paginationContainer.innerHTML = data.pagination;
-                    lucide.createIcons();
-                })
-                .catch(error => console.error('Error:', error));
-        }
 
         function debounce(func, wait) {
             let timeout;
@@ -695,10 +783,20 @@ $preHistData = [
         }
 
         const performSearch = debounce(function() {
-            fetchData(searchInput.value, 1);
+            const query = searchInput.value;
+            exportBtn.href = `export_session.php?id=${sessionId}&search=${encodeURIComponent(query)}`;
+
+            fetch(`?id=${sessionId}&ajax_search=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = data.table;
+                    paginationContainer.innerHTML = data.pagination;
+                    lucide.createIcons();
+                })
+                .catch(error => console.error('Error:', error));
         }, 300);
 
         searchInput.addEventListener('input', performSearch);
     </script>
 </body>
-</html>
+</html> 
