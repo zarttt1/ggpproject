@@ -40,27 +40,38 @@ if (isset($_GET['get_filter_options'])) {
            JOIN score s ON f.id_func = s.id_func 
            JOIN bu b ON s.id_bu = b.id_bu 
            WHERE f.func_n1 IS NOT NULL AND f.func_n1 != ''";
+    $p1 = [];
+
     if ($sel_bu !== 'All') {
-        $q1 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
+        $q1 .= " AND b.nama_bu = ?";
+        $p1[] = $sel_bu;
     }
     $q1 .= " ORDER BY f.func_n1";
-    $res1 = $conn->query($q1);
-    while($r = $res1->fetch_assoc()) { $response['fn1'][] = $r['func_n1']; }
+    
+    $stmt1 = $pdo->prepare($q1);
+    $stmt1->execute($p1);
+    $response['fn1'] = $stmt1->fetchAll(PDO::FETCH_COLUMN);
 
     // 2. Get valid Func N-2
     $q2 = "SELECT DISTINCT f.func_n2 FROM func f 
            JOIN score s ON f.id_func = s.id_func 
            JOIN bu b ON s.id_bu = b.id_bu 
            WHERE f.func_n2 IS NOT NULL AND f.func_n2 != ''";
+    $p2 = [];
+
     if ($sel_bu !== 'All') {
-        $q2 .= " AND b.nama_bu = '" . $conn->real_escape_string($sel_bu) . "'";
+        $q2 .= " AND b.nama_bu = ?";
+        $p2[] = $sel_bu;
     }
     if ($sel_fn1 !== 'All') {
-        $q2 .= " AND f.func_n1 = '" . $conn->real_escape_string($sel_fn1) . "'";
+        $q2 .= " AND f.func_n1 = ?";
+        $p2[] = $sel_fn1;
     }
     $q2 .= " ORDER BY f.func_n2";
-    $res2 = $conn->query($q2);
-    while($r = $res2->fetch_assoc()) { $response['fn2'][] = $r['func_n2']; }
+
+    $stmt2 = $pdo->prepare($q2);
+    $stmt2->execute($p2);
+    $response['fn2'] = $stmt2->fetchAll(PDO::FETCH_COLUMN);
 
     echo json_encode($response);
     exit;
@@ -83,18 +94,22 @@ if (isset($_GET['ajax_search'])) {
     ";
 
     $where_ajax = ["1=1"];
+    $params_ajax = [];
+
     if (!empty($search_term)) {
-        $safe_search = $conn->real_escape_string($search_term);
-        $where_ajax[] = "t.nama_training LIKE '%$safe_search%'";
+        $where_ajax[] = "t.nama_training LIKE ?";
+        $params_ajax[] = "%$search_term%";
     }
     
     // Group by session to distinct dates
     $sql_ajax = $base_sql . " WHERE " . implode(' AND ', $where_ajax) . " GROUP BY ts.id_session ORDER BY ts.date_start DESC LIMIT 50";
     
-    $result = $conn->query($sql_ajax);
+    $stmt = $pdo->prepare($sql_ajax);
+    $stmt->execute($params_ajax);
+    $results = $stmt->fetchAll();
 
-    if ($result->num_rows > 0) {
-        while($row = $result->fetch_assoc()) {
+    if (count($results) > 0) {
+        foreach($results as $row) {
             $date_display = formatDateRange($row['date_start'], $row['date_end']);
             $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
             ?>
@@ -144,26 +159,34 @@ $has_active_filters = (
     !empty($f_end)
 );
 
-// Build SQL Query
+// --- BUILD QUERY FOR STATS (Includes specific Training Name filter) ---
 $where_clauses = ["1=1"];
+$params = [];
 
-if ($f_bu !== 'All') $where_clauses[] = "b.nama_bu = '$f_bu'";
-if ($f_func1 !== 'All') $where_clauses[] = "f.func_n1 = '$f_func1'";
-if ($f_func2 !== 'All') $where_clauses[] = "f.func_n2 = '$f_func2'";
-if ($f_type !== 'All') $where_clauses[] = "t.jenis = '$f_type'";
-if (!empty($f_search)) $where_clauses[] = "t.nama_training LIKE '%$f_search%'";
+if ($f_bu !== 'All') { $where_clauses[] = "b.nama_bu = ?"; $params[] = $f_bu; }
+if ($f_func1 !== 'All') { $where_clauses[] = "f.func_n1 = ?"; $params[] = $f_func1; }
+if ($f_func2 !== 'All') { $where_clauses[] = "f.func_n2 = ?"; $params[] = $f_func2; }
+if ($f_type !== 'All') { $where_clauses[] = "t.jenis = ?"; $params[] = $f_type; }
+if (!empty($f_search)) { $where_clauses[] = "t.nama_training LIKE ?"; $params[] = "%$f_search%"; }
 
 // Date Logic
 if (!empty($f_start) && !empty($f_end)) {
-    $where_clauses[] = "ts.date_start >= '$f_start' AND ts.date_start <= '$f_end'";
+    $where_clauses[] = "ts.date_start >= ? AND ts.date_start <= ?";
+    $params[] = $f_start;
+    $params[] = $f_end;
 } elseif (!empty($f_start)) {
-    $where_clauses[] = "ts.date_start >= '$f_start'";
+    $where_clauses[] = "ts.date_start >= ?";
+    $params[] = $f_start;
 } elseif (!empty($f_end)) {
-    $where_clauses[] = "ts.date_start <= '$f_end'";
+    $where_clauses[] = "ts.date_start <= ?";
+    $params[] = $f_end;
 }
 
 // Apply specific training filter for the TOP STATS only
-if ($f_training_name !== 'All') $where_clauses[] = "t.nama_training = '$f_training_name'";
+if ($f_training_name !== 'All') {
+    $where_clauses[] = "t.nama_training = ?";
+    $params[] = $f_training_name;
+}
 
 $where_sql = implode(' AND ', $where_clauses);
 
@@ -178,22 +201,51 @@ $join_sql = "
 ";
 
 // --- 3. CALCULATE STATS ---
-$res_hours = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql);
-$total_hours_raw = $res_hours->fetch_assoc()['total'] ?? 0;
+// Total Hours
+$stmt = $pdo->prepare("SELECT SUM(ts.credit_hour) as total " . $join_sql);
+$stmt->execute($params);
+$total_hours_raw = $stmt->fetchColumn() ?? 0;
 
-$res_offline = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Inclass%')");
-$hours_offline_raw = $res_offline->fetch_assoc()['total'] ?? 0;
+// Offline Hours
+$stmt = $pdo->prepare("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Inclass%')");
+$stmt->execute($params);
+$hours_offline_raw = $stmt->fetchColumn() ?? 0;
 
-$res_online = $conn->query("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Hybrid%' OR ts.method LIKE '%Webinar%' OR ts.method LIKE '%Self-paced%')");
-$hours_online_raw = $res_online->fetch_assoc()['total'] ?? 0;
+// Online Hours
+$stmt = $pdo->prepare("SELECT SUM(ts.credit_hour) as total " . $join_sql . " AND (ts.method LIKE '%Hybrid%' OR ts.method LIKE '%Webinar%' OR ts.method LIKE '%Self-paced%')");
+$stmt->execute($params);
+$hours_online_raw = $stmt->fetchColumn() ?? 0;
 
-$res_part = $conn->query("SELECT COUNT(s.id_score) as total " . $join_sql);
-$total_participants_raw = $res_part->fetch_assoc()['total'] ?? 0;
+// Participants
+$stmt = $pdo->prepare("SELECT COUNT(s.id_score) as total " . $join_sql);
+$stmt->execute($params);
+$total_participants_raw = $stmt->fetchColumn() ?? 0;
+
 
 // --- 4. FETCH TRAINING LIST (Initial Load) ---
-// Exclude specific training filter for the list
-$where_clauses_list = array_diff($where_clauses, ["t.nama_training = '$f_training_name'"]);
-$where_sql_list = implode(' AND ', $where_clauses_list);
+// Note: We need to REBUILD the params because the list ignores the specific 'training_name' filter
+// but keeps all other filters (Date, BU, etc.)
+$list_where = ["1=1"];
+$list_params = [];
+
+if ($f_bu !== 'All') { $list_where[] = "b.nama_bu = ?"; $list_params[] = $f_bu; }
+if ($f_func1 !== 'All') { $list_where[] = "f.func_n1 = ?"; $list_params[] = $f_func1; }
+if ($f_func2 !== 'All') { $list_where[] = "f.func_n2 = ?"; $list_params[] = $f_func2; }
+if ($f_type !== 'All') { $list_where[] = "t.jenis = ?"; $list_params[] = $f_type; }
+if (!empty($f_search)) { $list_where[] = "t.nama_training LIKE ?"; $list_params[] = "%$f_search%"; }
+if (!empty($f_start) && !empty($f_end)) {
+    $list_where[] = "ts.date_start >= ? AND ts.date_start <= ?";
+    $list_params[] = $f_start;
+    $list_params[] = $f_end;
+} elseif (!empty($f_start)) {
+    $list_where[] = "ts.date_start >= ?";
+    $list_params[] = $f_start;
+} elseif (!empty($f_end)) {
+    $list_where[] = "ts.date_start <= ?";
+    $list_params[] = $f_end;
+}
+
+$where_sql_list = implode(' AND ', $list_where);
 
 $sql_list = "
     SELECT t.nama_training, ts.code_sub, ts.date_start, ts.date_end, ts.method
@@ -207,38 +259,54 @@ $sql_list = "
     ORDER BY ts.date_start DESC
     LIMIT 50
 ";
-$list_trainings = $conn->query($sql_list);
 
-// --- 5. FETCH FILTER OPTIONS ---
-$opt_bu = $conn->query("SELECT DISTINCT nama_bu FROM bu WHERE nama_bu IS NOT NULL ORDER BY nama_bu");
+$stmtList = $pdo->prepare($sql_list);
+$stmtList->execute($list_params);
+$list_trainings = $stmtList->fetchAll();
+
+
+// --- 5. FETCH FILTER OPTIONS (Dropdowns) ---
+$opt_bu = $pdo->query("SELECT DISTINCT nama_bu FROM bu WHERE nama_bu IS NOT NULL ORDER BY nama_bu")->fetchAll();
 
 // Fn1 Logic
-$fn1_query = "SELECT DISTINCT f.func_n1 FROM func f";
+$fn1_sql = "SELECT DISTINCT f.func_n1 FROM func f";
+$fn1_params = [];
+
 if ($f_bu !== 'All') {
-    $fn1_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($f_bu) . "' AND f.func_n1 IS NOT NULL";
+    $fn1_sql .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = ? AND f.func_n1 IS NOT NULL";
+    $fn1_params[] = $f_bu;
 } else {
-    $fn1_query .= " WHERE f.func_n1 IS NOT NULL";
+    $fn1_sql .= " WHERE f.func_n1 IS NOT NULL";
 }
-$fn1_query .= " ORDER BY f.func_n1";
-$opt_func1 = $conn->query($fn1_query);
+$fn1_sql .= " ORDER BY f.func_n1";
+$stmtFn1 = $pdo->prepare($fn1_sql);
+$stmtFn1->execute($fn1_params);
+$opt_func1 = $stmtFn1->fetchAll();
 
 // Fn2 Logic
-$fn2_query = "SELECT DISTINCT f.func_n2 FROM func f";
-if ($f_bu !== 'All') {
-     $fn2_query .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = '" . $conn->real_escape_string($f_bu) . "'";
-     if ($f_func1 !== 'All') {
-         $fn2_query .= " AND f.func_n1 = '" . $conn->real_escape_string($f_func1) . "'";
-     }
-     $fn2_query .= " AND f.func_n2 IS NOT NULL";
-} elseif ($f_func1 !== 'All') {
-    $fn2_query .= " WHERE f.func_n1 = '" . $conn->real_escape_string($f_func1) . "' AND f.func_n2 IS NOT NULL";
-} else {
-    $fn2_query .= " WHERE f.func_n2 IS NOT NULL";
-}
-$fn2_query .= " ORDER BY f.func_n2";
-$opt_func2 = $conn->query($fn2_query);
+$fn2_sql = "SELECT DISTINCT f.func_n2 FROM func f";
+$fn2_params = [];
 
-$opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL ORDER BY jenis");
+if ($f_bu !== 'All') {
+     $fn2_sql .= " JOIN score s ON f.id_func = s.id_func JOIN bu b ON s.id_bu = b.id_bu WHERE b.nama_bu = ?";
+     $fn2_params[] = $f_bu;
+     if ($f_func1 !== 'All') {
+         $fn2_sql .= " AND f.func_n1 = ?";
+         $fn2_params[] = $f_func1;
+     }
+     $fn2_sql .= " AND f.func_n2 IS NOT NULL";
+} elseif ($f_func1 !== 'All') {
+    $fn2_sql .= " WHERE f.func_n1 = ? AND f.func_n2 IS NOT NULL";
+    $fn2_params[] = $f_func1;
+} else {
+    $fn2_sql .= " WHERE f.func_n2 IS NOT NULL";
+}
+$fn2_sql .= " ORDER BY f.func_n2";
+$stmtFn2 = $pdo->prepare($fn2_sql);
+$stmtFn2->execute($fn2_params);
+$opt_func2 = $stmtFn2->fetchAll();
+
+$opt_type = $pdo->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL ORDER BY jenis")->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -671,8 +739,8 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                         </tr>
                     </thead>
                     <tbody id="trainingListContainer">
-                        <?php if ($list_trainings->num_rows > 0): ?>
-                            <?php while($row = $list_trainings->fetch_assoc()): 
+                        <?php if (count($list_trainings) > 0): ?>
+                            <?php foreach($list_trainings as $row): 
                                 $date_display = formatDateRange($row['date_start'], $row['date_end']);
                                 $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
                             ?>
@@ -689,7 +757,7 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                                 <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
                                 <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
                             </tr>
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <tr><td colspan="3" style="text-align:center; padding: 30px; color:#777;">No training programs found.</td></tr>
                         <?php endif; ?>
@@ -723,36 +791,36 @@ $opt_type = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT
                 <label>Business Unit</label>
                 <select id="select-bu" onchange="updateFilterDropdowns('bu')">
                     <option value="All">All Units</option>
-                    <?php while($r = $opt_bu->fetch_assoc()): ?>
+                    <?php foreach($opt_bu as $r): ?>
                         <option value="<?php echo $r['nama_bu']; ?>" <?php echo ($f_bu == $r['nama_bu'])?'selected':''; ?>><?php echo $r['nama_bu']; ?></option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="filter-group">
                 <label>Function N-1</label>
                 <select id="select-func-n1" onchange="updateFilterDropdowns('fn1')">
                     <option value="All">All Functions</option>
-                    <?php while($r = $opt_func1->fetch_assoc()): ?>
+                    <?php foreach($opt_func1 as $r): ?>
                         <option value="<?php echo $r['func_n1']; ?>" <?php echo ($f_func1 == $r['func_n1'])?'selected':''; ?>><?php echo $r['func_n1']; ?></option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="filter-group">
                 <label>Function N-2</label>
                 <select id="select-func-n2">
                     <option value="All">All Functions</option>
-                    <?php while($r = $opt_func2->fetch_assoc()): ?>
+                    <?php foreach($opt_func2 as $r): ?>
                         <option value="<?php echo $r['func_n2']; ?>" <?php echo ($f_func2 == $r['func_n2'])?'selected':''; ?>><?php echo $r['func_n2']; ?></option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="filter-group">
                 <label>Training Type</label>
                 <select id="select-type">
                     <option value="All">All Types</option>
-                    <?php while($r = $opt_type->fetch_assoc()): ?>
+                    <?php foreach($opt_type as $r): ?>
                         <option value="<?php echo $r['jenis']; ?>" <?php echo ($f_type == $r['jenis'])?'selected':''; ?>><?php echo $r['jenis']; ?></option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
         </div>
