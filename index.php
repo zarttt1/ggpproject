@@ -9,11 +9,13 @@ require_once 'app/controllers/AuthController.php';
 require_once 'app/controllers/DashboardController.php';
 require_once 'app/controllers/UploadController.php';
 require_once 'app/controllers/ReportController.php';
+require_once 'app/controllers/EmployeeController.php';
 
 $auth = new AuthController($pdo);
 $dashboard = new DashboardController($pdo);
 $upload = new UploadController($pdo);
 $report = new ReportController($pdo);
+$employee = new EmployeeController($pdo);
 
 $action = $_GET['action'] ?? 'show_login';
 
@@ -43,6 +45,18 @@ switch ($action) {
 
     case 'details_search':
         $report->detailsSearch();
+        break;
+
+    case 'employees':
+        $employee->index();
+        break;
+        
+    case 'employee_search':
+        $employee->search();
+        break;
+        
+    case 'employee_filter_options':
+        $employee->filterOptions();
         break;
 
     default: header("Location: index.php?action=show_login"); exit();
