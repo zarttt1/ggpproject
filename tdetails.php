@@ -25,25 +25,25 @@ $id_session = (int)$_GET['id'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_training'])) {
     $new_title = trim($_POST['title']);
     $new_code = trim($_POST['code']);
-    $new_credit = (int)$_POST['credit_hour'];
+    $new_credit = (float)$_POST['credit_hour']; // Changed to float to match DB likely
     $new_start = $_POST['date_start'];
     $new_end = $_POST['date_end'];
     
     if (!empty($new_title) && !empty($new_code) && !empty($new_start)) {
-        // Update Training Name
-        $stmt1 = $conn->prepare("UPDATE training t JOIN training_session ts ON t.id_training = ts.id_training SET t.nama_training = ? WHERE ts.id_session = ?");
-        $stmt1->bind_param("si", $new_title, $id_session);
-        $stmt1->execute();
-        $stmt1->close();
-        
-        // Update Session Details
-        $stmt2 = $conn->prepare("UPDATE training_session SET code_sub = ?, credit_hour = ?, date_start = ?, date_end = ? WHERE id_session = ?");
-        $stmt2->bind_param("sissi", $new_code, $new_credit, $new_start, $new_end, $id_session);
-        $stmt2->execute();
-        $stmt2->close();
-        
-        header("Location: tdetails.php?id=" . $id_session);
-        exit();
+        try {
+            // Update Training Name
+            $stmt1 = $pdo->prepare("UPDATE training t JOIN training_session ts ON t.id_training = ts.id_training SET t.nama_training = ? WHERE ts.id_session = ?");
+            $stmt1->execute([$new_title, $id_session]);
+            
+            // Update Session Details
+            $stmt2 = $pdo->prepare("UPDATE training_session SET code_sub = ?, credit_hour = ?, date_start = ?, date_end = ? WHERE id_session = ?");
+            $stmt2->execute([$new_code, $new_credit, $new_start, $new_end, $id_session]);
+            
+            header("Location: tdetails.php?id=" . $id_session);
+            exit();
+        } catch (PDOException $e) {
+            die("Error updating record: " . $e->getMessage());
+        }
     }
 }
 
@@ -74,17 +74,23 @@ function formatDateRange($start_date, $end_date) {
 // ==========================================
 if (isset($_GET['ajax_search'])) {
     $search_term = $_GET['ajax_search'];
+    $params = [$id_session];
     $where_search = "";
     
     if (!empty($search_term)) {
-        $safe_search = $conn->real_escape_string($search_term);
-        $where_search = " AND (k.nama_karyawan LIKE '%$safe_search%' OR k.index_karyawan LIKE '%$safe_search%')";
+        $where_search = " AND (k.nama_karyawan LIKE ? OR k.index_karyawan LIKE ?)";
+        $params[] = "%$search_term%";
+        $params[] = "%$search_term%";
     }
 
-    $count_sql = "SELECT COUNT(*) as total FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan WHERE s.id_session = $id_session $where_search";
-    $total_rows = $conn->query($count_sql)->fetch_assoc()['total'];
+    // Count Total
+    $count_sql = "SELECT COUNT(*) FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan WHERE s.id_session = ? $where_search";
+    $stmtCount = $pdo->prepare($count_sql);
+    $stmtCount->execute($params);
+    $total_rows = $stmtCount->fetchColumn();
     $total_pages = ceil($total_rows / $limit);
 
+    // Fetch Data
     $list_sql = "
         SELECT 
             k.index_karyawan, k.nama_karyawan,
@@ -94,15 +100,18 @@ if (isset($_GET['ajax_search'])) {
         JOIN karyawan k ON s.id_karyawan = k.id_karyawan
         LEFT JOIN bu b ON s.id_bu = b.id_bu
         LEFT JOIN func f ON s.id_func = f.id_func
-        WHERE s.id_session = $id_session $where_search
+        WHERE s.id_session = ? $where_search
         ORDER BY k.nama_karyawan ASC
         LIMIT $limit OFFSET $offset
     ";
-    $participants = $conn->query($list_sql);
+    
+    $stmtList = $pdo->prepare($list_sql);
+    $stmtList->execute($params);
+    $participants = $stmtList->fetchAll();
 
     ob_start();
-    if ($participants->num_rows > 0) {
-        while ($p = $participants->fetch_assoc()) {
+    if (count($participants) > 0) {
+        foreach ($participants as $p) {
             $improvement = $p['post'] - $p['pre'];
             $impSign = ($improvement > 0) ? '+' : '';
             $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
@@ -161,16 +170,17 @@ $meta_sql = "
     SELECT t.nama_training, ts.code_sub, ts.date_start, ts.date_end, ts.credit_hour 
     FROM training_session ts 
     JOIN training t ON ts.id_training = t.id_training 
-    WHERE ts.id_session = $id_session
+    WHERE ts.id_session = ?
 ";
-$meta_result = $conn->query($meta_sql);
+$stmtMeta = $pdo->prepare($meta_sql);
+$stmtMeta->execute([$id_session]);
+$meta = $stmtMeta->fetch();
 
-if ($meta_result->num_rows == 0) {
+if (!$meta) {
     echo "Session not found.";
     exit();
 }
 
-$meta = $meta_result->fetch_assoc();
 $training_name = htmlspecialchars($meta['nama_training']);
 $code_sub = htmlspecialchars($meta['code_sub']);
 $credit_hour = htmlspecialchars($meta['credit_hour']);
@@ -198,9 +208,11 @@ $stats_sql = "
         SUM(CASE WHEN post BETWEEN 61 AND 80 THEN 1 ELSE 0 END) as post_61_80,
         SUM(CASE WHEN post BETWEEN 81 AND 100 THEN 1 ELSE 0 END) as post_81_100
     FROM score 
-    WHERE id_session = $id_session
+    WHERE id_session = ?
 ";
-$stats = $conn->query($stats_sql)->fetch_assoc();
+$stmtStats = $pdo->prepare($stats_sql);
+$stmtStats->execute([$id_session]);
+$stats = $stmtStats->fetch();
 
 $total_participants = $stats['total'] > 0 ? $stats['total'] : 1; 
 $avg_pre = number_format($stats['avg_pre'] ?? 0, 1);
@@ -216,23 +228,31 @@ $top_sql = "
     SELECT k.nama_karyawan, (s.post - s.pre) as improvement, s.post, s.pre
     FROM score s 
     JOIN karyawan k ON s.id_karyawan = k.id_karyawan
-    WHERE s.id_session = $id_session
+    WHERE s.id_session = ?
     ORDER BY improvement DESC, s.pre ASC
     LIMIT 3
 ";
-$top_improvers = $conn->query($top_sql);
+$stmtTop = $pdo->prepare($top_sql);
+$stmtTop->execute([$id_session]);
+$top_improvers = $stmtTop->fetchAll();
 
 // --- 4. FETCH TABLE DATA (Initial Load) ---
+$params = [$id_session];
 $where_search = "";
 if (!empty($search)) {
-    $safe_search = $conn->real_escape_string($search);
-    $where_search = " AND (k.nama_karyawan LIKE '%$safe_search%' OR k.index_karyawan LIKE '%$safe_search%')";
+    $where_search = " AND (k.nama_karyawan LIKE ? OR k.index_karyawan LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
 }
 
-$count_sql = "SELECT COUNT(*) as total FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan WHERE s.id_session = $id_session $where_search";
-$total_rows = $conn->query($count_sql)->fetch_assoc()['total'];
+// Count Total for Initial Load
+$count_sql = "SELECT COUNT(*) FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan WHERE s.id_session = ? $where_search";
+$stmtCountInit = $pdo->prepare($count_sql);
+$stmtCountInit->execute($params);
+$total_rows = $stmtCountInit->fetchColumn();
 $total_pages = ceil($total_rows / $limit);
 
+// Fetch Participants
 $list_sql = "
     SELECT 
         k.index_karyawan, k.nama_karyawan,
@@ -242,11 +262,13 @@ $list_sql = "
     JOIN karyawan k ON s.id_karyawan = k.id_karyawan
     LEFT JOIN bu b ON s.id_bu = b.id_bu
     LEFT JOIN func f ON s.id_func = f.id_func
-    WHERE s.id_session = $id_session $where_search
+    WHERE s.id_session = ? $where_search
     ORDER BY k.nama_karyawan ASC
     LIMIT $limit OFFSET $offset
 ";
-$participants = $conn->query($list_sql);
+$stmtListInit = $pdo->prepare($list_sql);
+$stmtListInit->execute($params);
+$participants = $stmtListInit->fetchAll();
 
 // Prepare Histogram Data for JS
 $histLabels = ['0-20', '21-40', '41-60', '61-80', '81-100'];
@@ -556,25 +578,25 @@ $preHistData = [
             <?php 
             $ranks = ['gold', 'silver', 'bronze'];
             $i = 0;
-            while($top = $top_improvers->fetch_assoc()): 
-                $rankClass = $ranks[$i] ?? 'bronze';
-                $initials = strtoupper(substr($top['nama_karyawan'], 0, 1));
-            ?>
-            <div class="improver-card <?php echo $rankClass; ?>">
-                <div class="medal-icon">
-                    <?php if($i==0) echo '<img src="icons/First Place Badge.ico" alt="Gold Medal">'; elseif($i==1) echo '<img src="icons/Second Place Badge.ico" alt="Silver Medal">'; else echo '<img src="icons/Third Place Badge.ico" alt="Bronze Medal">'; ?>
+            if (count($top_improvers) > 0) {
+                foreach($top_improvers as $top): 
+                    $rankClass = $ranks[$i] ?? 'bronze';
+                    $initials = strtoupper(substr($top['nama_karyawan'], 0, 1));
+                ?>
+                <div class="improver-card <?php echo $rankClass; ?>">
+                    <div class="medal-icon">
+                        <?php if($i==0) echo '<img src="icons/First Place Badge.ico" alt="Gold Medal">'; elseif($i==1) echo '<img src="icons/Second Place Badge.ico" alt="Silver Medal">'; else echo '<img src="icons/Third Place Badge.ico" alt="Bronze Medal">'; ?>
+                    </div>
+                    <div class="imp-info">
+                        <h4><?php echo htmlspecialchars($top['nama_karyawan']); ?></h4>
+                        <p>Pre: <?php echo $top['pre']; ?> -> Post: <?php echo $top['post']; ?></p>
+                    </div>
+                    <div class="imp-score">+<?php echo $top['improvement']; ?></div>
                 </div>
-                <div class="imp-info">
-                    <h4><?php echo htmlspecialchars($top['nama_karyawan']); ?></h4>
-                    <p>Pre: <?php echo $top['pre']; ?> -> Post: <?php echo $top['post']; ?></p>
-                </div>
-                <div class="imp-score">+<?php echo $top['improvement']; ?></div>
-            </div>
-            <?php $i++; endwhile; ?>
-            
-            <?php if($i == 0): ?>
+                <?php $i++; endforeach; 
+            } else { ?>
                 <div class="improver-card"><p>No score data available yet.</p></div>
-            <?php endif; ?>
+            <?php } ?>
         </div>
 
         <div class="table-card">
@@ -603,8 +625,8 @@ $preHistData = [
                     </tr>
                 </thead>
                 <tbody id="participantTableBody">
-                    <?php if($participants->num_rows > 0): ?>
-                        <?php while($p = $participants->fetch_assoc()): 
+                    <?php if(count($participants) > 0): ?>
+                        <?php foreach($participants as $p): 
                             $improvement = $p['post'] - $p['pre'];
                             $impSign = ($improvement > 0) ? '+' : '';
                             $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
@@ -624,7 +646,7 @@ $preHistData = [
                             <td style="text-align:center;"><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
                             <td style="text-align:center;"><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                     <?php else: ?>
                         <tr><td colspan="7" style="text-align:center; padding: 20px; color:#888;">No participants found.</td></tr>
                     <?php endif; ?>
@@ -799,4 +821,4 @@ $preHistData = [
         searchInput.addEventListener('input', performSearch);
     </script>
 </body>
-</html> 
+</html>
