@@ -58,36 +58,49 @@ $offset = ($page - 1) * $limit;
 if (isset($_GET['ajax_search'])) {
     $search_term = $_GET['ajax_search'];
     $where_ajax = ["1=1"];
+    $params = [];
+
     if (!empty($search_term)) {
-        $safe_search = $conn->real_escape_string($search_term);
-        $where_ajax[] = "(t.nama_training LIKE '%$safe_search%' OR ts.code_sub LIKE '%$safe_search%')";
+        $where_ajax[] = "(t.nama_training LIKE ? OR ts.code_sub LIKE ?)";
+        $params[] = "%$search_term%";
+        $params[] = "%$search_term%";
     }
     
     if (isset($_GET['category']) && $_GET['category'] !== 'All Categories') {
-        $where_ajax[] = "t.jenis = '" . $conn->real_escape_string($_GET['category']) . "'";
+        $where_ajax[] = "t.jenis = ?";
+        $params[] = $_GET['category'];
     }
     if (isset($_GET['type']) && $_GET['type'] !== 'All Types') {
-        $where_ajax[] = "t.type = '" . $conn->real_escape_string($_GET['type']) . "'";
+        $where_ajax[] = "t.type = ?";
+        $params[] = $_GET['type'];
     }
     if (isset($_GET['method']) && $_GET['method'] !== 'All Methods') {
-        $where_ajax[] = "ts.method = '" . $conn->real_escape_string($_GET['method']) . "'";
+        $where_ajax[] = "ts.method = ?";
+        $params[] = $_GET['method'];
     }
     if (isset($_GET['code']) && $_GET['code'] !== 'All Codes') {
-        $where_ajax[] = "ts.code_sub = '" . $conn->real_escape_string($_GET['code']) . "'";
+        $where_ajax[] = "ts.code_sub = ?";
+        $params[] = $_GET['code'];
     }
     if (isset($_GET['start']) && !empty($_GET['start'])) {
-        $where_ajax[] = "ts.date_start >= '" . $conn->real_escape_string($_GET['start']) . "'";
+        $where_ajax[] = "ts.date_start >= ?";
+        $params[] = $_GET['start'];
     }
     if (isset($_GET['end']) && !empty($_GET['end'])) {
-        $where_ajax[] = "ts.date_start <= '" . $conn->real_escape_string($_GET['end']) . "'";
+        $where_ajax[] = "ts.date_start <= ?";
+        $params[] = $_GET['end'];
     }
     
     $where_sql_ajax = implode(' AND ', $where_ajax);
 
-    $count_sql = "SELECT COUNT(DISTINCT ts.id_session) as total FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql_ajax";
-    $total_records = $conn->query($count_sql)->fetch_assoc()['total'];
+    // Count Total
+    $count_sql = "SELECT COUNT(DISTINCT ts.id_session) FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql_ajax";
+    $stmtCount = $pdo->prepare($count_sql);
+    $stmtCount->execute($params);
+    $total_records = $stmtCount->fetchColumn();
     $total_pages = ceil($total_records / $limit);
     
+    // Fetch Data
     $data_sql = "
         SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
                COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
@@ -99,11 +112,13 @@ if (isset($_GET['ajax_search'])) {
         ORDER BY ts.date_start DESC
         LIMIT $limit OFFSET $offset 
     "; 
-    $result = $conn->query($data_sql);
+    $stmtData = $pdo->prepare($data_sql);
+    $stmtData->execute($params);
+    $results = $stmtData->fetchAll();
 
     ob_start();
-    if ($result->num_rows > 0) {
-        while($row = $result->fetch_assoc()) {
+    if (count($results) > 0) {
+        foreach($results as $row) {
             $category = $row['category'] ?? '';
             $method = $row['method'] ?? '';
             $training_type = $row['training_type'] ?? '';
@@ -170,30 +185,52 @@ if (isset($_GET['ajax_search'])) {
 
 // --- STANDARD LOAD QUERY ---
 $where_clauses = ["1=1"];
+$params = [];
 
 if (!empty($search)) {
-    $where_clauses[] = "(t.nama_training LIKE '%" . $conn->real_escape_string($search) . "%' OR ts.code_sub LIKE '%" . $conn->real_escape_string($search) . "%')";
+    $where_clauses[] = "(t.nama_training LIKE ? OR ts.code_sub LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
 }
-if ($filter_category !== 'All Categories') $where_clauses[] = "t.jenis = '" . $conn->real_escape_string($filter_category) . "'";
-if ($filter_type !== 'All Types') $where_clauses[] = "t.type = '" . $conn->real_escape_string($filter_type) . "'";
-if ($filter_method !== 'All Methods') $where_clauses[] = "ts.method = '" . $conn->real_escape_string($filter_method) . "'";
-if ($filter_code !== 'All Codes') $where_clauses[] = "ts.code_sub = '" . $conn->real_escape_string($filter_code) . "'";
+if ($filter_category !== 'All Categories') {
+    $where_clauses[] = "t.jenis = ?";
+    $params[] = $filter_category;
+}
+if ($filter_type !== 'All Types') {
+    $where_clauses[] = "t.type = ?";
+    $params[] = $filter_type;
+}
+if ($filter_method !== 'All Methods') {
+    $where_clauses[] = "ts.method = ?";
+    $params[] = $filter_method;
+}
+if ($filter_code !== 'All Codes') {
+    $where_clauses[] = "ts.code_sub = ?";
+    $params[] = $filter_code;
+}
 
 if (!empty($start_date) && !empty($end_date)) {
-    $where_clauses[] = "ts.date_start >= '$start_date' AND ts.date_start <= '$end_date'";
+    $where_clauses[] = "ts.date_start >= ? AND ts.date_start <= ?";
+    $params[] = $start_date;
+    $params[] = $end_date;
 } elseif (!empty($start_date)) {
-    $where_clauses[] = "ts.date_start >= '$start_date'";
+    $where_clauses[] = "ts.date_start >= ?";
+    $params[] = $start_date;
 } elseif (!empty($end_date)) {
-    $where_clauses[] = "ts.date_start <= '$end_date'";
+    $where_clauses[] = "ts.date_start <= ?";
+    $params[] = $end_date;
 }
 
 $where_sql = implode(' AND ', $where_clauses);
 
-$count_sql = "SELECT COUNT(DISTINCT ts.id_session) as total FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql";
-$total_result = $conn->query($count_sql);
-$total_records = $total_result->fetch_assoc()['total'] ?? 0;
+// Count Total
+$count_sql = "SELECT COUNT(DISTINCT ts.id_session) FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $where_sql";
+$stmtCount = $pdo->prepare($count_sql);
+$stmtCount->execute($params);
+$total_records = $stmtCount->fetchColumn();
 $total_pages = ceil($total_records / $limit);
 
+// Fetch Data
 $data_sql = "
     SELECT ts.id_session, t.nama_training, ts.code_sub, t.jenis AS category, t.type AS training_type, ts.method, ts.credit_hour, ts.date_start, ts.date_end, 
            COUNT(s.id_score) as participants, AVG(s.pre) as avg_pre, AVG(s.post) as avg_post
@@ -205,12 +242,15 @@ $data_sql = "
     ORDER BY ts.date_start DESC
     LIMIT $limit OFFSET $offset
 ";
-$result = $conn->query($data_sql);
+$stmtData = $pdo->prepare($data_sql);
+$stmtData->execute($params);
+$results = $stmtData->fetchAll();
 
-$categories_opt = $conn->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis");
-$types_opt = $conn->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type");
-$methods_opt = $conn->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method");
-$codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub");
+// Fetch Filter Options
+$categories_opt = $pdo->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis")->fetchAll();
+$types_opt = $pdo->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type")->fetchAll();
+$methods_opt = $pdo->query("SELECT DISTINCT method FROM training_session WHERE method IS NOT NULL AND method != '' ORDER BY method")->fetchAll();
+$codes_opt = $pdo->query("SELECT DISTINCT code_sub FROM training_session WHERE code_sub IS NOT NULL AND code_sub != '' ORDER BY code_sub")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -457,8 +497,8 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                         </tr>
                     </thead>
                     <tbody id="tableBody">
-                        <?php if ($result->num_rows > 0): ?>
-                            <?php while($row = $result->fetch_assoc()): 
+                        <?php if (count($results) > 0): ?>
+                            <?php foreach($results as $row): 
                                 $category = $row['category'] ?? '';
                                 $method = $row['method'] ?? '';
                                 $training_type = $row['training_type'] ?? '';
@@ -493,7 +533,7 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                                     </button>
                                 </td>
                             </tr>
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <tr><td colspan="9" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>
                         <?php endif; ?>
@@ -553,11 +593,11 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                 <label>Category</label>
                 <select id="filterCategory">
                     <option value="All Categories">All Categories</option>
-                    <?php while($t = $categories_opt->fetch_assoc()): ?>
+                    <?php foreach($categories_opt as $t): ?>
                         <option value="<?php echo htmlspecialchars($t['jenis']); ?>" <?php if($filter_category == $t['jenis']) echo 'selected'; ?>>
                             <?php echo htmlspecialchars($t['jenis']); ?>
                         </option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
 
@@ -565,11 +605,11 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                 <label>Training Type</label>
                 <select id="filterType">
                     <option value="All Types">All Types</option>
-                    <?php while($t = $types_opt->fetch_assoc()): ?>
+                    <?php foreach($types_opt as $t): ?>
                         <option value="<?php echo htmlspecialchars($t['type']); ?>" <?php if($filter_type == $t['type']) echo 'selected'; ?>>
                             <?php echo htmlspecialchars($t['type']); ?>
                         </option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             
@@ -577,11 +617,11 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                 <label>Method</label>
                 <select id="filterMethod">
                     <option value="All Methods">All Methods</option>
-                    <?php while($m = $methods_opt->fetch_assoc()): ?>
+                    <?php foreach($methods_opt as $m): ?>
                         <option value="<?php echo htmlspecialchars($m['method']); ?>" <?php if($filter_method == $m['method']) echo 'selected'; ?>>
                             <?php echo htmlspecialchars($m['method']); ?>
                         </option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
 
@@ -589,11 +629,11 @@ $codes_opt = $conn->query("SELECT DISTINCT code_sub FROM training_session WHERE 
                 <label>Sub Code</label>
                 <select id="filterCode">
                     <option value="All Codes">All Codes</option>
-                    <?php while($c = $codes_opt->fetch_assoc()): ?>
+                    <?php foreach($codes_opt as $c): ?>
                         <option value="<?php echo htmlspecialchars($c['code_sub']); ?>" <?php if($filter_code == $c['code_sub']) echo 'selected'; ?>>
                             <?php echo htmlspecialchars($c['code_sub']); ?>
                         </option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
         </div>
