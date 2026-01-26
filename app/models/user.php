@@ -15,5 +15,18 @@ class User {
         
         return $stmt->fetch(); 
     }
+
+    public function create($username, $password) {
+        try {
+            $hashed = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = $this->db->prepare("INSERT INTO users (user_id, username, password, role, status) VALUES (UUID(), :user, :pass, 'user', 'pending')");
+            return $stmt->execute(['user' => $username, 'pass' => $hashed]);
+        } catch (PDOException $e) {
+            if ($e->errorInfo[1] == 1062) {
+                return "Username already exists.";
+            }
+            return "Error: " . $e->getMessage();
+        }
+    }
 }
 ?>

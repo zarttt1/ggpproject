@@ -43,5 +43,28 @@ class AuthController {
         header("Location: index.php");
         exit();
     }
+
+    public function register() {
+        $error = '';
+        $success = '';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
+
+            if (empty($username) || empty($password)) {
+                $error = "All fields are required.";
+            } else {
+                $result = $this->userModel->create($username, $password);
+                if ($result === true) {
+                    $success = "Request sent! Waiting for Admin approval.";
+                } else {
+                    $error = $result;
+                }
+            }
+        }
+        
+        require 'app/views/register.php';
+    }
 }
 ?>
