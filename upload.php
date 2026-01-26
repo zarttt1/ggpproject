@@ -301,25 +301,36 @@ unset($_SESSION['upload_stats']);
                 </thead>
                 <tbody>
                     <?php
-                    if ($conn) {
-                        $sql = "SELECT * FROM uploads ORDER BY upload_time DESC LIMIT 10";
-                        $result = $conn->query($sql);
-                        if ($result && $result->num_rows > 0) {
-                            while($row = $result->fetch_assoc()) {
-                                $file_ext = strtolower(pathinfo($row['file_name'], PATHINFO_EXTENSION));
-                                $icon_class = ($file_ext == 'csv') ? 'csv' : '';
-                                $icon_name = ($file_ext == 'csv') ? 'file-text' : 'file-spreadsheet';
-                                $status_class = ($row['status'] == 'Success' || $row['status'] == 'Partial Success') ? 'status-success' : 'status-failed';
-                                echo "<tr>";
-                                echo "<td>" . date('Y-m-d H:i', strtotime($row['upload_time'])) . "</td>";
-                                echo "<td><div class='file-cell'><div class='icon-box {$icon_class}'><i data-lucide='{$icon_name}' style='width: 18px'></i></div><span class='file-name-text'>" . htmlspecialchars($row['file_name']) . "</span></div></td>";
-                                echo "<td>" . htmlspecialchars($row['uploaded_by']) . "</td>";
-                                echo "<td><span class='badge {$status_class}'>" . htmlspecialchars($row['status']) . "</span></td>";
-                                echo "<td><span class='row-count'>" . number_format($row['rows_processed']) . "</span></td>";
-                                echo "</tr>";
+                    // FIXED: Using PDO ($pdo) instead of old mysqli ($conn)
+                    if (isset($pdo)) {
+                        try {
+                            $sql = "SELECT * FROM uploads ORDER BY upload_time DESC LIMIT 10";
+                            $stmt = $pdo->query($sql);
+                            $uploads = $stmt->fetchAll();
+                            
+                            if (count($uploads) > 0) {
+                                foreach($uploads as $row) {
+                                    $file_ext = strtolower(pathinfo($row['file_name'], PATHINFO_EXTENSION));
+                                    $icon_class = ($file_ext == 'csv') ? 'csv' : '';
+                                    $icon_name = ($file_ext == 'csv') ? 'file-text' : 'file-spreadsheet';
+                                    $status_class = ($row['status'] == 'Success' || $row['status'] == 'Partial Success') ? 'status-success' : 'status-failed';
+                                    
+                                    // Use $row['upload_time'] directly if available, or current time if null
+                                    $time = isset($row['upload_time']) ? date('Y-m-d H:i', strtotime($row['upload_time'])) : date('Y-m-d H:i');
+
+                                    echo "<tr>";
+                                    echo "<td>" . $time . "</td>";
+                                    echo "<td><div class='file-cell'><div class='icon-box {$icon_class}'><i data-lucide='{$icon_name}' style='width: 18px'></i></div><span class='file-name-text'>" . htmlspecialchars($row['file_name']) . "</span></div></td>";
+                                    echo "<td>" . htmlspecialchars($row['uploaded_by'] ?? 'System') . "</td>";
+                                    echo "<td><span class='badge {$status_class}'>" . htmlspecialchars($row['status']) . "</span></td>";
+                                    echo "<td><span class='row-count'>" . number_format($row['rows_processed']) . "</span></td>";
+                                    echo "</tr>";
+                                }
+                            } else {
+                                echo "<tr><td colspan='5' style='text-align:center; color:#999; padding:40px'>No uploads yet.</td></tr>";
                             }
-                        } else {
-                            echo "<tr><td colspan='5' style='text-align:center; color:#999; padding:40px'>No uploads yet.</td></tr>";
+                        } catch (PDOException $e) {
+                            echo "<tr><td colspan='5' style='text-align:center; color:red; padding:40px'>Error fetching history.</td></tr>";
                         }
                     }
                     ?>
