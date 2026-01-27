@@ -58,28 +58,37 @@ class DashboardController {
         $filters = ['search' => $search_term]; 
         $results = $this->trainingModel->getTrainingList($filters, 50);
 
+        ob_start();
+
         if (count($results) > 0) {
             foreach($results as $row) {
                 $date_display = formatDateRange($row['date_start'], $row['date_end']);
                 $methodClass = (stripos($row['method'], 'Inclass') !== false) ? 'method-inclass' : 'method-online';
                 
-                echo '<tr onclick="selectTraining(this, \''.addslashes($row['nama_training']).'\')" style="cursor: pointer;">
+                ?>
+                <tr onclick="selectTraining(this, '<?php echo addslashes($row['nama_training']); ?>')" style="cursor: pointer;">
                     <td>
                         <div class="training-cell">
                             <div class="icon-box"><i data-lucide="book-open" style="width:18px;"></i></div>
                             <div>
-                                <div class="training-name-text">'.htmlspecialchars($row['nama_training']).'</div>
-                                <div style="font-size:11px; color:#888;">'.htmlspecialchars($row['code_sub']).'</div>
+                                <div class="training-name-text"><?php echo htmlspecialchars($row['nama_training']); ?></div>
+                                <div style="font-size:11px; color:#888;"><?php echo htmlspecialchars($row['code_sub']); ?></div>
                             </div>
                         </div>
                     </td>
-                    <td style="white-space: nowrap; font-family:\'Poppins\', sans-serif; font-size:12px; font-weight:500; color: #555;">'.$date_display.'</td>
-                    <td><span class="badge '.$methodClass.'">'.htmlspecialchars($row['method']).'</span></td>
-                </tr>';
+                    <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
+                    <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
+                </tr>
+                <?php
             }
         } else {
             echo '<tr><td colspan="3" style="text-align:center; padding: 20px; color:#777;">No training programs found.</td></tr>';
         }
+
+        $html_content = ob_get_clean();
+
+        header('Content-Type: application/json');
+        echo json_encode(['html' => $html_content]);
         exit;
     }
 }

@@ -7,7 +7,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="public/icons/icon.png">
     <style>
-        /* --- RESET & BASIC --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
 
@@ -21,7 +20,6 @@
             box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
-        /* --- NAVBAR --- */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
@@ -44,7 +42,6 @@
         }
         .btn-signout:hover { background-color: #b71c1c; }
 
-        /* --- SUMMARY CARDS --- */
         .summary-grid { 
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; 
             margin-bottom: 25px; width: 100%; flex-shrink: 0; 
@@ -69,7 +66,6 @@
         .s-label { font-size: 11px; color: #999; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px; }
         .s-value { font-size: 15px; font-weight: 700; color: #333; overflow: hidden; text-overflow: ellipsis; }
 
-        /* --- HERO CARD --- */
         .hero-card {
             background-color: #0e5e45; background-image: linear-gradient(135deg, #117054 0%, #0a4d38 100%);
             border-radius: 20px; padding: 30px 50px; color: white; display: flex; align-items: center; justify-content: space-between;
@@ -94,7 +90,6 @@
         .b-text h4 { font-size: 12px; font-weight: 400; opacity: 0.85; margin-bottom: 2px; white-space: nowrap; }
         .b-text p { font-size: 18px; font-weight: 700; white-space: nowrap; }
 
-        /* --- TRAINING SECTION --- */
         .training-section {
             background: white; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             display: flex; flex-direction: column; flex-grow: 1; min-height: 400px; overflow: hidden;
@@ -117,7 +112,6 @@
         }
         .btn-filter:hover { background-color: #f0fdf4; }
         
-        /* ACTIVE FILTER STATE */
         .btn-filter.active-filter {
             background-color: #fffcf5;
             color: #e65100;
@@ -127,7 +121,6 @@
             background-color: #fff5e0;
         }
 
-        /* --- TABLE STYLES --- */
         .table-responsive { flex-grow: 1; overflow: auto; padding: 0; width: 100%; }
         table { width: 100%; border-collapse: collapse; min-width: 600px; }
         
@@ -148,12 +141,10 @@
         }
         .training-name-text { font-weight: 700; line-height: 1.2; font-size: 14px; }
         
-        /* BADGES */
         .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; white-space: nowrap; }
         .method-online { background: #E0F2F1; color: #00695C; border: 1px solid rgba(0, 105, 92, 0.1); }
         .method-inclass { background: #FCE4EC; color: #C2185B; border: 1px solid rgba(194, 24, 91, 0.1); }
 
-        /* --- DRAWER STYLES --- */
         .filter-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none;
@@ -219,7 +210,6 @@
         .btn-apply:hover rect { opacity: 1; animation: snakeBorder 2s linear infinite; }
         @keyframes snakeBorder { from { stroke-dashoffset: 500; } to { stroke-dashoffset: 0; } }
 
-        /* RESPONSIVE */
         @media (max-width: 1024px) {
             .main-wrapper { padding: 20px; }
             .navbar { margin: -20px -20px 20px -20px; padding-left: 30px; padding-right: 30px; }
@@ -492,7 +482,6 @@
 <script>
     lucide.createIcons();
 
-    // --- 1. ROLLING NUMBERS ANIMATION ---
     function animateValue(obj, start, end, duration) {
         if (start === end) {
             obj.innerHTML = end.toLocaleString();
@@ -549,7 +538,6 @@
         }
     });
 
-    // --- 2. LIVE SEARCH LOGIC (AJAX) ---
     const searchInput = document.getElementById('dashboardSearchInput');
     const listContainer = document.getElementById('trainingListContainer');
 
@@ -564,11 +552,10 @@
 
     const performSearch = debounce(function() {
         const query = searchInput.value;
-        // AJAX: Note the new action "dashboard_search"
         fetch(`index.php?action=dashboard_search&ajax_search=${encodeURIComponent(query)}`)
-            .then(response => response.text())
-            .then(html => {
-                listContainer.innerHTML = html;
+            .then(response => response.json())
+            .then(data => {
+                listContainer.innerHTML = data.html;
                 lucide.createIcons(); 
             })
             .catch(error => console.error('Error:', error));
@@ -578,14 +565,12 @@
         searchInput.addEventListener('input', performSearch);
     }
 
-    // --- 3. FILTER LOGIC ---
     function toggleDrawer() { document.getElementById('body').classList.toggle('drawer-open'); }
 
     function updateFilterDropdowns(trigger) {
         const bu = document.getElementById('select-bu').value;
         const fn1 = document.getElementById('select-func-n1').value;
 
-        // AJAX: Note the new action "filter_options"
         fetch(`index.php?action=filter_options&bu=${encodeURIComponent(bu)}&func_n1=${encodeURIComponent(fn1)}`)
             .then(res => res.json())
             .then(data => {
@@ -635,7 +620,6 @@
 
         const params = new URLSearchParams(window.location.search);
         
-        // Ensure we keep the action
         if (!params.has('action')) params.set('action', 'dashboard');
 
         if(selBu !== 'All') params.set('bu', selBu); else params.delete('bu');
