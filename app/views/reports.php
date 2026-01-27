@@ -23,9 +23,8 @@
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
-            margin: -20px -40px 30px -40px; padding-left: 70px; padding-right: 70px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
-            position: sticky; top: -20px; z-index: 1000; 
+            margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; 
         }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
