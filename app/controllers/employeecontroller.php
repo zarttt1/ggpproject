@@ -204,7 +204,7 @@ class EmployeeController {
         $data = $this->empModel->getTrainingHistory($id, $search, $page);
 
         $tableHtml = $this->renderHistoryRows($data['data']);
-        $paginationHtml = $this->renderPagination($data); // We reuse the existing pagination helper
+        $paginationHtml = $this->renderPagination($data);
 
         header('Content-Type: application/json');
         echo json_encode(['table' => $tableHtml, 'pagination' => $paginationHtml]);
@@ -256,7 +256,6 @@ class EmployeeController {
                 <?php
             }
         } else {
-            // Note: colspan changed from 8 to 6 because we merged columns
             echo '<tr><td colspan="6" style="text-align:center; padding: 25px; color:#888;">No training history found.</td></tr>';
         }
         return ob_get_clean();
@@ -269,8 +268,6 @@ class EmployeeController {
 
         $user = $this->empModel->getEmployeeById($id);
         if (!$user) exit("Employee not found");
-
-        $history = $this->empModel->getTrainingHistory($id, '', 1, 1000); 
 
         $templatePath = __DIR__ . '/../../uploads/Employee Reports.xlsx';
         if (!file_exists($templatePath)) exit("Template not found at: $templatePath");
@@ -292,22 +289,49 @@ class EmployeeController {
                 $sheet->setCellValue('A' . $row, $no);
                 $sheet->setCellValue('B' . $row, $h['nama_training']);
                 $sheet->setCellValue('C' . $row, date('d-M-Y', strtotime($h['date_start'])));
-                $sheet->setCellValue('D' . $row, $h['training_type'] ?? 'Internal');
-                $sheet->setCellValue('E' . $row, $h['method'] ?? 'Offline');
-                $sheet->setCellValue('F' . $row, $h['pre']);
-                $sheet->setCellValue('G' . $row, $h['post']);
+                $sheet->setCellValue('D' . $row, $h['credit_hour']);      
+                $sheet->setCellValue('E' . $row, $h['instructor_name']); 
+                $sheet->setCellValue('F' . $row, $h['lembaga']);         
+                $sheet->setCellValue('G' . $row, $h['training_type']);   
+                $sheet->setCellValue('H' . $row, $h['method']);          
+                $sheet->setCellValue('I' . $row, $h['pre']);             
+                $sheet->setCellValue('J' . $row, $h['post']);            
 
-                $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle("A$row:J$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                
                 $sheet->getStyle("A$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("C$row:G$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("C$row:J$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 $row++;
                 $no++;
             }
         }
 
+        $startWatermark = $row;
+        $endWatermark   = $row + 1;
+
+        $sheet->mergeCells("A$startWatermark:J$endWatermark");
+        $sheet->setCellValue("A$startWatermark", "Created By Dashboard Training Coverage");
+
+        $sheet->getStyle("A$startWatermark:J$endWatermark")->applyFromArray([
+            'font' => [
+                'italic' => true,
+                'size'   => 10,
+                'color'  => ['argb' => 'FF555555'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical'   => Alignment::VERTICAL_CENTER,
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                ],
+            ],
+        ]);
+
         $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $user['nama_karyawan']);
-        $filename = "History_" . $cleanName . ".xlsx";
+        $filename = "Employee_Reports_" . $cleanName . ".xlsx";
 
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment;filename="'. $filename .'"');

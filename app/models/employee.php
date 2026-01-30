@@ -105,6 +105,7 @@ class Employee {
 
         return ['fn1' => $fn1Opts, 'fn2' => $fn2Opts];
     }
+
     // --- FOR EMPLOYEE HISTORY PAGE ---
 
     public function getEmployeeById($id) {
@@ -157,7 +158,7 @@ class Employee {
         $totalRecords = $stmtCount->fetchColumn();
 
         $sql = "SELECT 
-                    t.nama_training, t.jenis AS category, t.type AS training_type, 
+                    t.nama_training, t.jenis AS category, t.type AS training_type, t.instructor_name AS instructor_name,t.lembaga,
                     ts.date_start, ts.date_end, ts.method, ts.place, ts.credit_hour,
                     s.pre, s.post
                 FROM score s

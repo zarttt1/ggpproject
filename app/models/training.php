@@ -7,7 +7,12 @@ class Training {
     public function __construct($pdo) {
         $this->db = $pdo;
     }
-
+public function getTypes() {
+    $sql = "SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis ASC";
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
     private function buildFilterQuery($filters) {
         $where = ["1=1"];
         $params = [];
@@ -56,13 +61,6 @@ class Training {
             $where .= " AND t.nama_training = ?";
             $params[] = $filters['training_name'];
         }
-
-        $join = "FROM score s
-                 JOIN training_session ts ON s.id_session = ts.id_session
-                 JOIN training t ON ts.id_training = t.id_training
-                 LEFT JOIN bu b ON s.id_bu = b.id_bu
-                 LEFT JOIN func f ON s.id_func = f.id_func
-                 WHERE $where";
 
         $stmt = $this->db->prepare("SELECT SUM(ts.credit_hour) FROM score s JOIN training_session ts ON s.id_session = ts.id_session JOIN training t ON ts.id_training = t.id_training LEFT JOIN bu b ON s.id_bu = b.id_bu LEFT JOIN func f ON s.id_func = f.id_func WHERE $where");
         $stmt->execute($params);
@@ -151,11 +149,6 @@ class Training {
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    public function getTypes() {
-        return $this->db->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL ORDER BY jenis")->fetchAll(PDO::FETCH_COLUMN);
-    }
-
-    // --- FOR REPORTS PAGE ---
     public function getCategories() {
         return $this->db->query("SELECT DISTINCT jenis FROM training WHERE jenis IS NOT NULL AND jenis != '' ORDER BY jenis")->fetchAll(PDO::FETCH_COLUMN);
     }
@@ -209,10 +202,7 @@ class Training {
 
         $whereSql = implode(' AND ', $where);
 
-        $countSql = "SELECT COUNT(DISTINCT ts.id_session) 
-                     FROM training_session ts 
-                     JOIN training t ON ts.id_training = t.id_training 
-                     WHERE $whereSql";
+        $countSql = "SELECT COUNT(DISTINCT ts.id_session) FROM training_session ts JOIN training t ON ts.id_training = t.id_training WHERE $whereSql";
         $stmtCount = $this->db->prepare($countSql);
         $stmtCount->execute($params);
         $totalRecords = $stmtCount->fetchColumn();
@@ -245,10 +235,11 @@ class Training {
         return $this->db->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type")->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    // --- FOR DETAILS PAGE ---
-
+    // --- UPDATED FOR EXPORT SINKRONISASI ---
     public function getSessionById($id) {
-        $sql = "SELECT t.nama_training, ts.code_sub, ts.date_start, ts.date_end, ts.credit_hour 
+        // Mengambil instructor_name dan lembaga dari tabel training
+        $sql = "SELECT t.nama_training, t.instructor_name, t.lembaga, 
+                       ts.code_sub, ts.date_start, ts.date_end, ts.credit_hour 
                 FROM training_session ts 
                 JOIN training t ON ts.id_training = t.id_training 
                 WHERE ts.id_session = ?";
@@ -258,7 +249,6 @@ class Training {
     }
 
     public function getSessionStats($id) {
-        // Calculates averages and histogram buckets
         $sql = "SELECT 
             COUNT(id_score) as total,
             AVG(pre) as avg_pre,
@@ -305,13 +295,11 @@ class Training {
             $params[] = "%$search%";
         }
 
-        // Count
         $countSql = "SELECT COUNT(*) FROM score s JOIN karyawan k ON s.id_karyawan = k.id_karyawan $where";
         $stmtCount = $this->db->prepare($countSql);
         $stmtCount->execute($params);
         $totalRecords = $stmtCount->fetchColumn();
 
-        // Fetch Data
         $sql = "SELECT k.index_karyawan, k.nama_karyawan, b.nama_bu, f.func_n1, s.pre, s.post
                 FROM score s
                 JOIN karyawan k ON s.id_karyawan = k.id_karyawan
@@ -323,10 +311,8 @@ class Training {
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        $results = $stmt->fetchAll();
-
         return [
-            'data' => $results,
+            'data' => $stmt->fetchAll(),
             'total_records' => $totalRecords,
             'total_pages' => ceil($totalRecords / $limit),
             'current_page' => $page
@@ -337,11 +323,19 @@ class Training {
         try {
             $this->db->beginTransaction();
 
-            // Update Training Name
-            $stmt1 = $this->db->prepare("UPDATE training t JOIN training_session ts ON t.id_training = ts.id_training SET t.nama_training = ? WHERE ts.id_session = ?");
-            $stmt1->execute([$data['title'], $id]);
+            $stmt1 = $this->db->prepare("
+                UPDATE training t 
+                JOIN training_session ts ON t.id_training = ts.id_training 
+                SET t.nama_training = ?, t.instructor_name = ?, t.lembaga = ? 
+                WHERE ts.id_session = ?
+            ");
+            $stmt1->execute([
+                $data['title'], 
+                $data['instructor_name'] ?? '', 
+                $data['lembaga'] ?? '', 
+                $id
+            ]);
             
-            // Update Session Details
             $stmt2 = $this->db->prepare("UPDATE training_session SET code_sub = ?, credit_hour = ?, date_start = ?, date_end = ? WHERE id_session = ?");
             $stmt2->execute([$data['code'], $data['credit_hour'], $data['date_start'], $data['date_end'], $id]);
 
@@ -354,15 +348,20 @@ class Training {
     }
 
     public function getParticipantsForExport($id) {
-        $sql = "SELECT k.index_karyawan, k.nama_karyawan, f.func_n2, s.pre, s.post
-                FROM score s
-                JOIN karyawan k ON s.id_karyawan = k.id_karyawan
-                LEFT JOIN func f ON s.id_func = f.id_func
-                WHERE s.id_session = ?
-                ORDER BY k.nama_karyawan ASC";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$id]);
-        return $stmt->fetchAll();
+        $sql = "SELECT 
+                k.index_karyawan, 
+                k.nama_karyawan, 
+                b.nama_bu,       
+                s.pre, 
+                s.post
+            FROM score s
+            JOIN karyawan k ON s.id_karyawan = k.id_karyawan
+            LEFT JOIN bu b ON s.id_bu = b.id_bu  
+            WHERE s.id_session = ?
+            ORDER BY k.nama_karyawan ASC";
+            
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute([$id]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
-?>

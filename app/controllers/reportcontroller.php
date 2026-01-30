@@ -4,6 +4,7 @@
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+
 require_once __DIR__ . '/../models/Training.php';
 
 class ReportController {
@@ -28,8 +29,8 @@ class ReportController {
 
         $data = $this->trainingModel->getAllSessions($filters, $page);
         
-        $categories_opt = $this->trainingModel->getCategories(); // Column: jenis
-        $types_opt = $this->trainingModel->getTrainingTypes();   // Column: type
+        $categories_opt = $this->trainingModel->getCategories(); 
+        $types_opt = $this->trainingModel->getTrainingTypes();   
         $methods_opt = $this->trainingModel->getMethods();
         $codes_opt = $this->trainingModel->getCodes();
 
@@ -105,9 +106,7 @@ class ReportController {
                             </div>
                         </div>
                     </td>
-                    
                     <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
-                    
                     <td style="white-space: normal; width: 220px; min-width: 200px;">
                         <div style="display: flex; gap: 4px; row-gap: 4px; flex-wrap: wrap; align-items: center;">
                             <?php if($category): ?>
@@ -121,7 +120,6 @@ class ReportController {
                             <?php endif; ?>
                         </div>
                     </td>
-
                     <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour'] ?? '0'); ?></td>
                     <td style="text-align:center;"><?php echo $row['participants']; ?></td>
                     <td class="score"><?php echo $avgScore; ?></td>
@@ -191,7 +189,9 @@ class ReportController {
                     'code' => trim($_POST['code']),
                     'credit_hour' => (float)$_POST['credit_hour'],
                     'date_start' => $_POST['date_start'],
-                    'date_end' => $_POST['date_end']
+                    'date_end' => $_POST['date_end'],
+                    'instructor_name' => trim($_POST['instructor_name']),
+                    'lembaga' => trim($_POST['lembaga'])
                 ];
                 $this->trainingModel->updateSession($id, $data);
                 header("Location: index.php?action=details&id=" . $id);
@@ -217,6 +217,8 @@ class ReportController {
         $credit_hour = $meta['credit_hour'];
         $date_start_raw = $meta['date_start'];
         $date_end_raw = $meta['date_end'];
+        $lembaga = $meta['lembaga'];
+        $instructor_name = $meta['instructor_name'];
         $display_date = formatDateRange($date_start_raw, $date_end_raw);
         
         $total_participants = $stats['total'] > 0 ? $stats['total'] : 0;
@@ -256,7 +258,7 @@ class ReportController {
                 $improvement = $p['post'] - $p['pre'];
                 $impSign = ($improvement > 0) ? '+' : '';
                 $badgeClass = ($improvement >= 0) ? 'badge-improvement' : 'badge-decline';
-                $initials = strtoupper(substr($p['nama_karyawan'], 0, 1));
+                $initials = strtoupper(substr($p['nama_karyawan'] ?? '?', 0, 1));
                 ?>
                 <tr>
                     <td style="font-family:'Poppins', sans-serif; font-weight:600; color:#555;"><?php echo htmlspecialchars($p['index_karyawan']); ?></td>
@@ -266,8 +268,8 @@ class ReportController {
                             <span style="font-weight:600; color:#333;"><?php echo htmlspecialchars($p['nama_karyawan']); ?></span>
                         </div>
                     </td>
-                    <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['nama_bu']); ?></span></td>
-                    <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['func_n1']); ?></span></td>
+                    <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['nama_bu'] ?? '-'); ?></span></td>
+                    <td><span style="color:#666; font-size:13px;"><?php echo htmlspecialchars($p['func_n1'] ?? '-'); ?></span></td>
                     <td style="text-align:center; color:#888;"><?php echo $p['pre']; ?></td>
                     <td style="text-align:center;"><strong style="color:#197B40"><?php echo $p['post']; ?></strong></td>
                     <td style="text-align:center;"><span class="<?php echo $badgeClass; ?>"><?php echo $impSign . $improvement; ?></span></td>
@@ -311,79 +313,109 @@ class ReportController {
         return ob_get_clean();
     }
 
-   public function exportSession() {
-    $this->checkAuth();
-    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-    if ($id === 0) exit("Invalid ID");
+    public function exportSession() {
+        $this->checkAuth();
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id === 0) exit("Invalid ID");
 
-    $meta = $this->trainingModel->getSessionById($id);
-    if (!$meta) exit("Session not found");
+        $meta = $this->trainingModel->getSessionById($id);
+        if (!$meta) exit("Session not found");
 
-    $stats = $this->trainingModel->getSessionStats($id);
-    $participants = $this->trainingModel->getParticipantsForExport($id);
+        $stats = $this->trainingModel->getSessionStats($id);
+        $participants = $this->trainingModel->getParticipantsForExport($id);
 
-    $templatePath = __DIR__ . '/../../uploads/Training Reports.xlsx';
+        $trainingYear = (int)date('Y', strtotime($meta['date_start']));
 
-    if (!file_exists($templatePath)) {
-        $templatePath = __DIR__ . '/../../public/Training Reports.xlsx';
-        if (!file_exists($templatePath)) exit("Template not found.");
+        $templatePath = __DIR__ . '/../../uploads/Training Reports.xlsx';
+        if (!file_exists($templatePath)) {
+            $templatePath = __DIR__ . '/../../public/Training Reports.xlsx';
+            if (!file_exists($templatePath)) exit("Template not found.");
+        }
+
+        $spreadsheet = IOFactory::load($templatePath);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // --- MAPPING DATA KE EXCEL ---
+        $sheet->setCellValue('C7', ': ' . ($meta['nama_training'] ?? '-'));
+        $sheet->setCellValue('C8', ': ' . date('d M Y', strtotime($meta['date_start'])));
+        $sheet->setCellValue('C9', ': ' . ($stats['total'] ?? 0) . ' Orang');
+        $sheet->setCellValue('C10', ': ' . ($meta['instructor_name'] ?? '-')); 
+
+        $sheet->setCellValue('F7', ': ' . ($meta['code_sub'] ?? '-'));
+        $sheet->setCellValue('F8', ': ' . ($meta['credit_hour'] ?? 0) . ' Jam'); 
+        $sheet->setCellValue('F9', ': ' . ($meta['lembaga'] ?? '-'));
+
+        // --- LOGIKA FEEDBACK ---
+        $scores = [
+            12 => $stats['avg_subject'],
+            13 => $stats['avg_instructor'],
+            14 => $stats['avg_infras']
+        ];
+
+        foreach ($scores as $rowIdx => $scoreValue) {
+            $val = (float)$scoreValue;
+            $sheet->setCellValue('C' . $rowIdx, ': ' . number_format($val, 2));
+
+            $ket = "";
+            if ($trainingYear >= 2026) {
+                if ($val >= 4.21)      $ket = "SANGAT BAIK";
+                elseif ($val >= 3.41)  $ket = "BAIK";
+                elseif ($val >= 2.61)  $ket = "CUKUP";
+                elseif ($val >= 1.81)  $ket = "KURANG";
+                else                   $ket = "SGT KURANG";
+            } else {
+                if ($val >= 8.51)      $ket = "SANGAT BAIK";
+                elseif ($val >= 7.01)  $ket = "BAIK";
+                elseif ($val >= 5.01)  $ket = "CUKUP";
+                elseif ($val >= 3.01)  $ket = "KURANG";
+                else                   $ket = "SGT KURANG";
+            }
+            $sheet->setCellValue('E' . $rowIdx, ': ' . $ket);
+        }
+
+        $row = 17;
+        $no = 1;
+        foreach ($participants as $p) {
+            $sheet->setCellValue('A' . $row, $no);
+            $sheet->setCellValue('B' . $row, $p['index_karyawan']);
+            $sheet->setCellValue('C' . $row, $p['nama_karyawan']);
+            $sheet->setCellValue('D' . $row, $p['nama_bu'] ?? '-');   
+            $sheet->setCellValue('E' . $row, $p['pre']);
+            $sheet->setCellValue('F' . $row, $p['post']);
+
+            $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $row++;
+            $no++;
+        }
+
+        $watermarkRow = $row;
+        $sheet->setCellValue('A' . $watermarkRow, "Created By Dashboard Training Coverage");
+        $sheet->mergeCells("A$watermarkRow:G$watermarkRow");
+        $sheet->getStyle('A' . $watermarkRow)->applyFromArray([
+            'font' => [
+                'italic' => true,
+                'size'   => 9,
+                'color'  => ['argb' => 'FF808080'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                ],
+            ],
+        ]);
+
+        $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $meta['nama_training']);
+        $filename = "Report_" . $cleanName . ".xlsx";
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="'. $filename .'"');
+        header('Cache-Control: max-age=0');
+
+        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $writer->save('php://output');
+        exit;
     }
-
-    $spreadsheet = IOFactory::load($templatePath);
-    $sheet = $spreadsheet->getActiveSheet();
-
-    $sheet->setCellValue('C7', ': ' . $meta['nama_training']);
-    $sheet->setCellValue('C8', ': ' . date('d M Y', strtotime($meta['date_start'])));
-    $sheet->setCellValue('C9', ': ' . $stats['total'] . ' Orang');
-    $sheet->setCellValue('F7', ': ' . $meta['code_sub']);
-
-    $scores = [
-        '12' => $stats['avg_subject'],
-        '13' => $stats['avg_instructor'],
-        '14' => $stats['avg_infras']
-    ];
-
-    foreach ($scores as $rowIdx => $scoreValue) {
-        $val = (float)$scoreValue;
-        $sheet->setCellValue('C' . $rowIdx, ': ' . number_format($val, 2));
-
-        if ($val >= 8.51) $ket = "SANGAT BAIK";
-        elseif ($val >= 7.01) $ket = "BAIK";
-        elseif ($val >= 5.01) $ket = "CUKUP";
-        elseif ($val >= 3.01) $ket = "KURANG";
-        else $ket = "SGT KURANG";
-
-        $sheet->setCellValue('E' . $rowIdx, ': ' . $ket);
-    }
-
-    $row = 17;
-    $no = 1;
-    foreach ($participants as $p) {
-        $sheet->setCellValue('A' . $row, $no);
-        $sheet->setCellValue('B' . $row, $p['index_karyawan']);
-        $sheet->setCellValue('C' . $row, $p['nama_karyawan']);
-        $sheet->setCellValue('D' . $row, $p['func_n2']); 
-        $sheet->setCellValue('E' . $row, $p['pre']);
-        $sheet->setCellValue('F' . $row, $p['post']);
-
-        $status = ($p['post'] >= 75) ? "Lulus" : "Remedial";
-        $sheet->setCellValue('G' . $row, $status);
-
-        $sheet->getStyle("A$row:G$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $row++;
-        $no++;
-    }
-
-    $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $meta['nama_training']);
-    $filename = "Report_" . $cleanName . ".xlsx";
-
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment;filename="'. $filename .'"');
-    header('Cache-Control: max-age=0');
-
-    $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
-    $writer->save('php://output');
-    exit;
 }
-}
-?>
