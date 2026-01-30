@@ -215,8 +215,12 @@ class EmployeeController {
         ob_start();
         if (count($rows) > 0) {
             foreach ($rows as $row) {
-                $catClass = (stripos($row['category'], 'Technical') !== false) ? 'type-tech' : ((stripos($row['category'], 'Soft') !== false) ? 'type-soft' : 'type-default');
-                $methodClass = (stripos($row['method'], 'Online') !== false) ? 'method-online' : 'method-class';
+                $category = $row['category'] ?? '';
+                $training_type = $row['training_type'] ?? '';
+                $method = $row['method'] ?? '';
+
+                $catClass = (stripos($category, 'Technical') !== false) ? 'type-tech' : ((stripos($category, 'Soft') !== false) ? 'type-soft' : 'type-default');
+                $methodClass = (stripos($method, 'Online') !== false) ? 'method-online' : 'method-class';
                 $date_display = formatDateRange($row['date_start'], $row['date_end'] ?? '');
                 ?>
                 <tr>
@@ -228,9 +232,21 @@ class EmployeeController {
                     <td style="color:#666; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; white-space: nowrap;">
                         <?php echo $date_display; ?>
                     </td>
-                    <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($row['category']); ?></span></td>
-                    <td><span class="badge type-info"><?php echo htmlspecialchars($row['training_type']); ?></span></td>
-                    <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($row['method']); ?></span></td>
+                    
+                    <td style="white-space: normal; width: 220px; min-width: 200px;">
+                        <div style="display: flex; gap: 4px; row-gap: 4px; flex-wrap: wrap; align-items: center;">
+                            <?php if($category): ?>
+                                <span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span>
+                            <?php endif; ?>
+                            <?php if($training_type): ?>
+                                <span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span>
+                            <?php endif; ?>
+                            <?php if($method): ?>
+                                <span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </td>
+
                     <td style="text-align: center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour']); ?></td>
                     <td style="text-align: center; color:#888;"><?php echo $row['pre']; ?></td>
                     <td style="text-align: center;">
@@ -240,7 +256,8 @@ class EmployeeController {
                 <?php
             }
         } else {
-            echo '<tr><td colspan="8" style="text-align:center; padding: 25px; color:#888;">No training history found.</td></tr>';
+            // Note: colspan changed from 8 to 6 because we merged columns
+            echo '<tr><td colspan="6" style="text-align:center; padding: 25px; color:#888;">No training history found.</td></tr>';
         }
         return ob_get_clean();
     }

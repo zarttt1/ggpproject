@@ -7,24 +7,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="public/icons/icon.png">
     <style>
+        /* --- RESET & BASIC --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
-        body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
+        
+        /* Allow page scrolling */
+        body { background-color: #117054; padding: 0; margin: 0; min-height: 100vh; overflow-x: hidden; }
 
         .main-wrapper {
-            background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto;
-            transition: all 0.4s cubic-bezier(0.32, 1, 0.23, 1); transform-origin: center left;
+            background-color: #f3f4f7; padding: 20px 40px; min-height: 100vh;
             width: 100%; position: relative; display: flex; flex-direction: column;
+            transition: all 0.4s cubic-bezier(0.32, 1, 0.23, 1); transform-origin: center left;
         }
         .drawer-open .main-wrapper {
             transform: scale(0.85) translateX(24px); border-radius: 35px; pointer-events: auto;
             box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
+        /* --- NAVBAR --- */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
-            margin: -20px 0 30px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
-            flex-shrink: 0; position: sticky; top: -20px; z-index: 1000; 
+            margin: -20px -40px 30px -40px; padding-left: 70px; padding-right: 70px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex-shrink: 0;
+            position: sticky; top: -20px; z-index: 1000; 
         }
         .logo-section img { height: 40px; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
@@ -41,13 +46,15 @@
         }
         .btn-signout:hover { background-color: #b71c1c; }
 
+        /* --- TABLE CARD --- */
         .table-card { 
             background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); 
-            overflow: hidden; margin-bottom: 40px; margin-top: 20px; 
+            overflow: visible; 
+            margin-bottom: 40px; margin-top: 20px; 
             display: flex; flex-direction: column; flex-grow: 1;
         }
         .table-header-strip { 
-            background-color: #197B40; color: white; padding: 15px 25px; 
+            background-color: #197B40; color: white; padding: 15px 25px; border-radius: 12px 12px 0 0;
             display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; gap: 15px;
         }
         .table-title { font-weight: 700; font-size: 16px; margin: 0; white-space: nowrap; }
@@ -70,14 +77,22 @@
         .btn-action-small.active-filter { background-color: #fffcf5; color: #e65100; border: 1px solid #FF9A02; }
         .btn-action-small.active-filter:hover { background-color: #fff5e0; }
         
-        .table-responsive { flex-grow: 1; overflow-y: auto; width: 100%; }
+        /* Table Scroll Container */
+        .table-responsive { width: 100%; overflow-x: auto; }
+        
         table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        
         th { 
-            text-align: left; padding: 15px 30px; font-size: 12px; color: #555; 
+            text-align: left; 
+            padding: 15px 20px; 
+            font-size: 12px; color: #555; 
             font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-            background: white; border-bottom: 2px solid #eee; position: sticky; top: 0; z-index: 10; 
+            background: white; 
+            border-bottom: 2px solid #eee; 
+            white-space: nowrap;
         }
-        td { padding: 15px 30px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+        
+        td { padding: 15px 20px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         td:not(:first-child) { white-space: nowrap; }
         tr:hover { background-color: #fafbfc; }
 
@@ -89,13 +104,15 @@
         }
         .training-name-text { font-weight: 700; line-height: 1.2; font-size: 14px; }
         
-        .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
+        /* Badges */
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
         .type-tech { background: #E3F2FD; color: #1565C0; border: 1px solid rgba(21, 101, 192, 0.1); }
         .type-soft { background: #FFF3E0; color: #EF6C00; border: 1px solid rgba(239, 108, 0, 0.1); }
         .type-default { background: #F5F5F5; color: #616161; }
         .type-info { background: #F3E5F5; color: #7B1FA2; border: 1px solid rgba(123, 31, 162, 0.1); }
         .method-online { background: #E0F2F1; color: #00695C; border: 1px solid rgba(0, 105, 92, 0.1); }
         .method-inclass { background: #FCE4EC; color: #C2185B; border: 1px solid rgba(194, 24, 91, 0.1); }
+        
         .score { color: #197B40; font-weight: bold; }
         
         .btn-view { 
@@ -228,10 +245,7 @@
                         <tr>
                             <th>Training Name</th>
                             <th>Date</th>
-                            <th>Category</th> 
-                            <th>Type</th>     
-                            <th>Method</th>
-                            <th style="text-align:center;">Credit Hour</th> 
+                            <th>Tags</th> <th style="text-align:center;">Credit Hour</th> 
                             <th style="text-align:center;">Participants</th>
                             <th>Avg Score</th>
                             <th>Action</th>

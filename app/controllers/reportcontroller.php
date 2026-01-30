@@ -105,10 +105,23 @@ class ReportController {
                             </div>
                         </div>
                     </td>
+                    
                     <td style="white-space: nowrap; font-family:'Poppins', sans-serif; font-size:12px; font-weight:500; color: #555;"><?php echo $date_display; ?></td>
-                    <td><span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span></td>
-                    <td><span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span></td>
-                    <td><span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span></td>
+                    
+                    <td style="white-space: normal; width: 220px; min-width: 200px;">
+                        <div style="display: flex; gap: 4px; row-gap: 4px; flex-wrap: wrap; align-items: center;">
+                            <?php if($category): ?>
+                                <span class="badge <?php echo $catClass; ?>"><?php echo htmlspecialchars($category); ?></span>
+                            <?php endif; ?>
+                            <?php if($training_type): ?>
+                                <span class="badge type-info"><?php echo htmlspecialchars($training_type); ?></span>
+                            <?php endif; ?>
+                            <?php if($method): ?>
+                                <span class="badge <?php echo $methodClass; ?>"><?php echo htmlspecialchars($method); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </td>
+
                     <td style="text-align:center; font-weight:600;"><?php echo htmlspecialchars($row['credit_hour'] ?? '0'); ?></td>
                     <td style="text-align:center;"><?php echo $row['participants']; ?></td>
                     <td class="score"><?php echo $avgScore; ?></td>
@@ -122,7 +135,7 @@ class ReportController {
                 <?php
             }
         } else {
-            echo '<tr><td colspan="9" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>';
+            echo '<tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No records found.</td></tr>';
         }
         return ob_get_clean();
     }

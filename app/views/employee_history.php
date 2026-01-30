@@ -72,7 +72,8 @@
         th { text-align: left; padding: 15px 25px; font-size: 12px; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background-color: #fff; border-bottom: 2px solid #eee; position: sticky; top: 0; z-index: 10; }
         td { padding: 16px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         
-        .badge { padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
+        /* UPDATED: Compact Badges for Tags Layout */
+        .badge { padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; line-height: 1.2; }
         .type-tech { background: #E3F2FD; color: #1565C0; border: 1px solid rgba(21, 101, 192, 0.1); }
         .type-soft { background: #FFF3E0; color: #EF6C00; border: 1px solid rgba(239, 108, 0, 0.1); }
         .type-default { background: #F5F5F5; color: #616161; }
@@ -205,9 +206,7 @@
                         <tr>
                             <th style="width: 30%;">Training Name</th>
                             <th>Date</th>
-                            <th>Category</th> 
-                            <th>Type</th> 
-                            <th>Method</th>
+                            <th>Tags</th> 
                             <th style="text-align: center;">Credit</th>
                             <th style="text-align: center;">Pre Score</th>
                             <th style="text-align: center;">Post Score</th>

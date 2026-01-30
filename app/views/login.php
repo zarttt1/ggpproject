@@ -49,7 +49,7 @@
 
         <div class="login-section">
             <div class="header-content">
-                <img src="GGF Green.png" alt="GGF Logo" class="logo-placeholder">
+                <img src="public\GGF Green.png" alt="GGF Logo" class="logo-placeholder">
                 
                 <h2>Welcome Back</h2>
                 <p class="subtitle">Sign in to access your training dashboard</p>
