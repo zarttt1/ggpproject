@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GGF Learning Center</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Poppins:wght@900&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 1. COLORS & RESET --- */
+        :root {
+            --ggf-green: #197B40;
+            --ggf-orange: #FFAA1F;
+            --bg-color: #f3f4f6;
+            --card-gap: 16px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background-color: var(--bg-color);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Outfit', sans-serif;
+            overflow: hidden; 
+        }
+
+        /* --- 2. MAIN CONTAINER --- */
+        .dashboard-container {
+            width: 98vw;  
+            height: 95vh; 
+            background-color: #e2e8f0; 
+            border-radius: 24px;
+            padding: 16px;
+            
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-template-rows: 80px 1fr minmax(0, 0.4fr);    
+            gap: var(--card-gap);
+        }
+
+        /* --- 3. HEADER --- */
+        .header {
+            grid-column: 1 / -1; 
+            grid-row: 1 / 2;
+            background-color: var(--ggf-green); 
+            border-radius: 16px; 
+            display: flex;
+            align-items: center;
+            justify-content: space-between; 
+            padding: 0 40px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(25, 123, 64, 0.4);
+            gap: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: shine 3s infinite;
+        }
+        
+        @keyframes shine {
+            0% { left: -100%; }
+            20% { left: 200%; }
+            100% { left: 200%; }
+        }
+
+        .header-logo-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%; 
+        }
+
+        .header-logo-placeholder img {
+            height: 50px; 
+            width: auto;
+            object-fit: contain;
+        }
+
+        .header-text {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 900; 
+            font-size: 1.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            line-height: 1;
+        }
+
+        /* --- 4. PHOTO SECTION --- */
+        .photo-section {
+            grid-column: 1 / 9; 
+            grid-row: 2 / 3;    
+            background-color: var(--ggf-green);
+            border-radius: 24px;
+            padding: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .slide-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 16px;
+            position: absolute;
+            top: 0; left: 0;
+            width: calc(100% - 40px); 
+            height: calc(100% - 40px);
+            margin: 20px;
+            background-color: #004d26; 
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+        }
+        
+        .slide-img.active { opacity: 1; }
+
+        /* --- 5. DESCRIPTION SECTION --- */
+        .desc-section {
+            grid-column: 1 / 9; 
+            grid-row: 3 / 4;   
+            background-color: var(--ggf-green);
+            border-radius: 24px;
+            padding: 30px;
+            overflow-y: auto; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            color: white;
+        }
+
+        .desc-title {
+            color: #ffffff; 
+            font-weight: 800;
+            font-size: 2rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        
+        .desc-title::before {
+            content: '';
+            display: block;
+            width: 6px;
+            height: 30px;
+            background-color: var(--ggf-orange);
+            border-radius: 4px;
+        }
+
+        .desc-text {
+            color: rgba(255,255,255,0.9); 
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+
+        .desc-line-1 { font-weight: 600; margin-bottom: 8px; }
+        .desc-line-2 { font-weight: 300; opacity: 0.9; }
+
+        .desc-section::-webkit-scrollbar { width: 8px; }
+        .desc-section::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.3); border-radius: 4px; }
+
+        /* --- 6. BUTTON SECTION (Grid Layout) --- */
+        .button-section {
+            grid-column: 9 / -1; 
+            grid-row: 2 / 4;     
+            background-color: var(--ggf-green);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            
+            /* CHANGED: Use Grid for 2 columns */
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            grid-auto-rows: minmax(140px, 1fr); /* Set minimum height for buttons */
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        /* --- BUTTON STYLES (Card Layout) --- */
+        .nav-btn {
+            background-color: #1dab56;
+            color: white;
+            padding: 20px 15px;
+            border-radius: 20px; /* Slightly larger radius for card look */
+            text-decoration: none;
+            
+            /* FLEX COLUMN LAYOUT */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* Center vertically */
+            text-align: center;
+            
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: 2px solid transparent;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .nav-btn:hover {
+            background-color: white; 
+            color: #1dab56; 
+            transform: translateY(-5px); /* Lift up effect */
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        
+        .btn-icon { 
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .btn-icon img {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+            margin-bottom: -10px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            line-height: 1.2;
+            margin-bottom: 8px;
+        }
+
+        .btn-desc {
+            font-weight: 400;
+            font-size: 0.85rem;
+            opacity: 0.9;
+            line-height: 1.3;
+        }
+
+        .button-section::-webkit-scrollbar { width: 6px; }
+        .button-section::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.3); border-radius: 10px; }
+
+        /* --- MOBILE --- */
+        @media (max-width: 1024px) {
+            .dashboard-container {
+                display: flex;
+                flex-direction: column;
+                height: auto;
+                width: 100%;
+                border-radius: 0;
+            }
+            .header { justify-content: space-between; } 
+            .photo-section { height: 350px; }
+            .desc-section { height: 250px; } 
+            .button-section { 
+                height: auto; 
+                grid-template-columns: 1fr 1fr; /* Keep 2 cols on mobile or switch to 1 if preferred */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        
+        <div class="header">
+            <div class="header-logo-placeholder">
+                <img src="GGF White.png" alt="GGF Logo">
+            </div>
+            <div class="header-text">Learning Center</div>
+        </div>
+
+        <div class="photo-section" id="slideshow-box">
+            <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80" class="slide-img active">
+        </div>
+
+        <div class="desc-section">
+            <div class="desc-title" id="display-title">Room Booking</div>
+            <div class="desc-text" id="display-desc">
+                <div class="desc-line-1">This is a website where users can book a room for training, seminars, or meetings.</div>
+                <div class="desc-line-2">It ensures that schedules are organized and facilities are utilized efficiently.</div>
+            </div>
+        </div>
+
+        <div class="button-section">
+            
+            <a href="#" class="nav-btn" 
+               data-title="Room Booking"
+               data-desc="<div class='desc-line-1'>This is a website where users can book a room for training, seminars, or meetings.</div><div class='desc-line-2'>It ensures that schedules are organized and facilities are utilized efficiently.</div>"
+               data-slides="https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80, https://images.unsplash.com/photo-1517502884422-41e157d4433c?w=1200&q=80">
+                <span class="btn-icon">🗓️</span>
+                <span class="btn-title">Room Booking</span>
+                <span class="btn-desc">Book rooms for training & meetings</span>
+            </a>
+
+            <a href="#" class="nav-btn" 
+               data-title="Training Coverage"
+               data-desc="<div class='desc-line-1'>Dashboard training coverage where users can see the training history of each employee.</div><div class='desc-line-2'>Users can also see metrics such as learning hours to track development progress.</div>"
+               data-slides="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80, https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&q=80">
+                <span class="btn-icon">📊</span>
+                <span class="btn-title">Training Coverage</span>
+                <span class="btn-desc">Track training history & metrics</span>
+            </a>
+
+            <a href="https://elearning.gg-foods.com/" class="nav-btn" 
+               data-title="E Learning Moodle"
+               data-desc="<div class='desc-line-1'>E Learning Moodle platform for structured courses.</div><div class='desc-line-2'>Access course materials, quizzes, and track your curriculum progress through our Moodle integration.</div>"
+               data-slides="https://images.unsplash.com/photo-1501504905252-473c47e087f8?w=1200&q=80, https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?w=1200&q=80">
+                <span class="btn-icon"><img src="Moodle Logo.svg"></span>
+                <span class="btn-title">Moodle</span>
+                <span class="btn-desc">Course materials & quizzes</span>
+            </a>
+
+             <a href="https://performancemanager10.successfactors.com/sf/learning?destUrl=https%3a%2f%2fptgreatgia%2eplateau%2ecom%2flearning%2fuser%2fdeeplink%5fredirect%2ejsp%3flinkId%3dHOME%5fPAGE%26fromDeepLink%3dnull%26pageID%3d%26fromSF%3dY&company=ptgreatgia" class="nav-btn" 
+                data-title="E Learning"
+                data-desc="<div class='desc-line-1'>A general E Learning platform for continuous development.</div><div class='desc-line-2'>Explore a wide range of digital resources and online training modules.</div>"
+                data-slides="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&q=80, https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&q=80">
+                 <span class="btn-icon"><img src="SF Logo.svg"></span>
+                 <span class="btn-title">SuccessFactors</span>
+                 <span class="btn-desc">Digital resources & modules</span>
+             </a>
+
+             <a href="https://tcats.gg-foods.com/" class="nav-btn" 
+                data-title="T-CATS"
+                data-desc="<div class='desc-line-1'>T-CATS: Training Center Competency Assessment and Training System.</div><div class='desc-line-2'>A system designed to assess employee competencies and map out necessary training paths.</div>"
+                data-slides="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=80, https://images.unsplash.com/photo-1580894894513-541e068a3e2b?w=1200&q=80">
+                 <span class="btn-icon">📝</span>
+                 <span class="btn-title">T-CATS</span>
+                 <span class="btn-desc">Competency assessment system</span>
+             </a>
+
+        </div>
+
+    </div>
+
+    <script>
+        const slideshowBox = document.getElementById('slideshow-box');
+        const displayTitle = document.getElementById('display-title');
+        const displayDesc = document.getElementById('display-desc');
+        const buttons = document.querySelectorAll('.nav-btn');
+
+        let slideInterval;
+        let currentIndex = 0;
+
+        function startSlideshow(urls) {
+            clearInterval(slideInterval);
+            slideshowBox.innerHTML = '';
+            currentIndex = 0;
+
+            const images = [];
+            urls.forEach((url, index) => {
+                const img = document.createElement('img');
+                img.src = url.trim();
+                img.className = 'slide-img';
+                if(index === 0) img.classList.add('active');
+                slideshowBox.appendChild(img);
+                images.push(img);
+            });
+
+            if(images.length > 1) {
+                slideInterval = setInterval(() => {
+                    images[currentIndex].classList.remove('active');
+                    currentIndex = (currentIndex + 1) % images.length;
+                    images[currentIndex].classList.add('active');
+                }, 3000);
+            }
+        }
+
+        buttons.forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                const title = btn.getAttribute('data-title');
+                const desc = btn.getAttribute('data-desc');
+                const rawSlides = btn.getAttribute('data-slides');
+
+                displayTitle.textContent = title;
+                displayDesc.innerHTML = desc; 
+                
+                if(rawSlides) {
+                    startSlideshow(rawSlides.split(','));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
