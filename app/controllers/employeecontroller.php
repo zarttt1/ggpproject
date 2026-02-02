@@ -269,12 +269,16 @@ class EmployeeController {
         $user = $this->empModel->getEmployeeById($id);
         if (!$user) exit("Employee not found");
 
+        // Memanggil history (Model sudah kita update sebelumnya untuk menarik trainers & lembaga)
+        $history = $this->empModel->getTrainingHistory($id, '', 1, 1000); 
+
         $templatePath = __DIR__ . '/../../uploads/Employee Reports.xlsx';
         if (!file_exists($templatePath)) exit("Template not found at: $templatePath");
 
         $spreadsheet = IOFactory::load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
 
+        // Header Informasi Karyawan
         $sheet->setCellValue('C7', ': ' . $user['index_karyawan']);
         $sheet->setCellValue('C8', ': ' . $user['nama_karyawan']);
         $sheet->setCellValue('C9', ': ' . ($user['bu'] ?? '-'));
@@ -286,19 +290,22 @@ class EmployeeController {
 
         if (!empty($history['data'])) {
             foreach ($history['data'] as $h) {
+                // Sesuai urutan kolom di gambar template: A sampai J
                 $sheet->setCellValue('A' . $row, $no);
                 $sheet->setCellValue('B' . $row, $h['nama_training']);
                 $sheet->setCellValue('C' . $row, date('d-M-Y', strtotime($h['date_start'])));
-                $sheet->setCellValue('D' . $row, $h['credit_hour']);      
-                $sheet->setCellValue('E' . $row, $h['instructor_name']); 
-                $sheet->setCellValue('F' . $row, $h['lembaga']);         
-                $sheet->setCellValue('G' . $row, $h['training_type']);   
-                $sheet->setCellValue('H' . $row, $h['method']);          
-                $sheet->setCellValue('I' . $row, $h['pre']);             
-                $sheet->setCellValue('J' . $row, $h['post']);            
+                $sheet->setCellValue('D' . $row, $h['credit_hour']);      // Kolom Kredit Hours
+                $sheet->setCellValue('E' . $row, $h['instructor_name']); // Kolom Trainers (Aliased di model)
+                $sheet->setCellValue('F' . $row, $h['lembaga']);         // Kolom Lembaga
+                $sheet->setCellValue('G' . $row, $h['training_type']);   // Kolom Type
+                $sheet->setCellValue('H' . $row, $h['method']);          // Kolom Method
+                $sheet->setCellValue('I' . $row, $h['pre']);             // Kolom Pre-Test
+                $sheet->setCellValue('J' . $row, $h['post']);            // Kolom Post-Test
 
+                // Memberikan Border dari kolom A sampai J
                 $sheet->getStyle("A$row:J$row")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
                 
+                // Alignment Center untuk kolom tertentu agar rapi
                 $sheet->getStyle("A$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("C$row:J$row")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
@@ -307,12 +314,15 @@ class EmployeeController {
             }
         }
 
+        // --- WATERMARK SESUAI RANGE BARU (A-J) ---
         $startWatermark = $row;
         $endWatermark   = $row + 1;
 
+        // Gabungkan cell A-J untuk watermark
         $sheet->mergeCells("A$startWatermark:J$endWatermark");
         $sheet->setCellValue("A$startWatermark", "Created By Dashboard Training Coverage");
 
+        // Styling Watermark
         $sheet->getStyle("A$startWatermark:J$endWatermark")->applyFromArray([
             'font' => [
                 'italic' => true,
