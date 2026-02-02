@@ -106,8 +106,6 @@ class Employee {
         return ['fn1' => $fn1Opts, 'fn2' => $fn2Opts];
     }
 
-    // --- FOR EMPLOYEE HISTORY PAGE ---
-
     public function getEmployeeById($id) {
         $sql = "SELECT 
                     k.nama_karyawan, k.index_karyawan,

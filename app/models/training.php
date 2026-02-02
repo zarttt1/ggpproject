@@ -235,9 +235,7 @@ public function getTypes() {
         return $this->db->query("SELECT DISTINCT type FROM training WHERE type IS NOT NULL AND type != '' ORDER BY type")->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    // --- UPDATED FOR EXPORT SINKRONISASI ---
     public function getSessionById($id) {
-        // Mengambil instructor_name dan lembaga dari tabel training
         $sql = "SELECT t.nama_training, t.instructor_name, t.lembaga, 
                        ts.code_sub, ts.date_start, ts.date_end, ts.credit_hour 
                 FROM training_session ts 

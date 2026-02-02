@@ -13,8 +13,6 @@ class Importer {
         $this->db = $pdo;
     }
 
-    // --- Helpers ---
-
     private function t($v) {
         if ($v === null) return '';
         if ($v instanceof \DateTimeInterface) return $v->format('Y-m-d');
@@ -47,7 +45,6 @@ class Importer {
         $scriptStart = microtime(true);
 
         try {
-            // 1. Prepare Temp Table
             $this->db->exec("CREATE TEMPORARY TABLE IF NOT EXISTS tmp_upload_keys (
                 excel_row INT, id_session INT, id_karyawan INT, 
                 nama VARCHAR(255), training VARCHAR(255), date_start DATE, 
@@ -55,14 +52,12 @@ class Importer {
             ) ENGINE=InnoDB");
             $this->db->exec("DELETE FROM tmp_upload_keys");
 
-            // 2. Start Transaction
             $this->db->beginTransaction();
             $this->db->exec("SET FOREIGN_KEY_CHECKS=0");
             $this->db->exec("SET UNIQUE_CHECKS=0");
 
             $initialCount = (int)$this->db->query("SELECT COUNT(*) FROM score")->fetchColumn();
 
-            // 3. Cache Data (NORMALIZED TO LOWERCASE KEYS)
             $bu = [];
             foreach($this->db->query("SELECT nama_bu, id_bu FROM bu") as $r) {
                 $bu[strtolower(trim($r['nama_bu']))] = $r['id_bu'];
@@ -70,7 +65,6 @@ class Importer {
 
             $kar = [];
             foreach($this->db->query("SELECT index_karyawan, id_karyawan FROM karyawan") as $r) {
-                // IDs usually don't need lowercase, but safe to trim
                 $kar[trim($r['index_karyawan'])] = $r['id_karyawan'];
             }
 
@@ -85,27 +79,22 @@ class Importer {
                 $func[$k] = $r['id_func'];
             }
 
-            // Session keys rely on IDs and Dates, so lowercasing isn't strictly necessary here, 
-            // but code_sub should be trimmed.
             $sess = [];
             foreach ($this->db->query("SELECT id_session, id_training, code_sub, date_start FROM training_session") as $r) {
                 $k = $r['id_training'] . '|' . trim($r['code_sub'] ?? '') . '|' . $r['date_start'];
                 $sess[$k] = $r['id_session'];
             }
 
-            // 4. Prepared Statements
             $insBU    = $this->db->prepare("INSERT INTO bu (nama_bu) VALUES (?)");
             $insFunc  = $this->db->prepare("INSERT INTO func (func_n1, func_n2) VALUES (?,?)");
             $insKar   = $this->db->prepare("INSERT INTO karyawan (index_karyawan, nama_karyawan) VALUES (?,?)");
             $insTrain = $this->db->prepare("INSERT INTO training (nama_training, jenis, type, instructor_name, lembaga) VALUES (?,?,?,?,?)");
             $insSess  = $this->db->prepare("INSERT INTO training_session (id_training, code_sub, class, date_start, date_end, credit_hour, place, method) VALUES (?,?,?,?,?,?,?,?)");
 
-            // 5. Open File
             if ($ext === 'csv') $reader = new CsvReader();
             else $reader = new XlsxReader();
             $reader->open($filePath);
 
-            // 6. Process Rows
             $BATCH_LIMIT = 500;
             $sqlScores = [];
             $sqlKeys = [];
@@ -125,7 +114,6 @@ class Importer {
                     $r = $row->toArray();
                     $rowsProcessed++;
 
-                    // MAPPING
                     $idx  = $this->t($r[0] ?? '');
                     $name = $this->t($r[1] ?? '');
                     $subj = $this->t($r[2] ?? '');
@@ -133,13 +121,11 @@ class Importer {
 
                     if (!$idx || !$subj || !$ds) { $rowsSkipped++; continue; }
 
-                    // --- Resolve IDs (Using Lowercase Keys) ---
                     
-                    // BU
                     $b = $this->t($r[18] ?? '');
-                    $bKey = strtolower($b); // Normalized Key
+                    $bKey = strtolower($b);
                     if ($b !== '' && !isset($bu[$bKey])) {
-                        $insBU->execute([$b]); // Insert original case
+                        $insBU->execute([$b]);
                         $bu[$bKey] = $this->db->lastInsertId();
                     }
                     $bid = $bu[$bKey] ?? null;
@@ -147,25 +133,23 @@ class Importer {
                     // FUNC
                     $f1 = $this->t($r[19] ?? '');
                     $f2 = $this->t($r[20] ?? '') ?: null;
-                    $fk = strtolower($f1) . '|' . strtolower($f2 ?? ''); // Normalized Key
+                    $fk = strtolower($f1) . '|' . strtolower($f2 ?? '');
                     if ($f1 !== '' && !isset($func[$fk])) {
-                        $insFunc->execute([$f1, $f2]); // Insert original case
+                        $insFunc->execute([$f1, $f2]);
                         $func[$fk] = $this->db->lastInsertId();
                     }
                     $fid = $func[$fk] ?? null;
 
-                    // KARYAWAN
                     if (!isset($kar[$idx])) {
                         $insKar->execute([$idx, $name]);
                         $kar[$idx] = $this->db->lastInsertId();
                     }
                     $kid = $kar[$idx];
 
-                    // TRAINING
-                    $subjKey = strtolower($subj); // Normalized Key
+                    $subjKey = strtolower($subj);
                     if (!isset($train[$subjKey])) {
                         $insTrain->execute([
-                            $subj, // Insert original case
+                            $subj,
                             $this->t($r[21] ?? ''), 
                             $this->t($r[8] ?? ''),  
                             $this->t($r[13] ?? ''), 
@@ -175,7 +159,6 @@ class Importer {
                     }
                     $tid = $train[$subjKey];
 
-                    // SESSION (This handles date differences automatically)
                     $codeSub = $this->t($r[3] ?? '');
                     $sk = $tid . '|' . $codeSub . '|' . $ds;
                     
@@ -198,7 +181,6 @@ class Importer {
                     }
                     $sid = $sess[$sk];
 
-                    // --- Batch ---
                     $q_name = $this->db->quote($name);
                     $q_subj = $this->db->quote($subj);
                     $q_ds   = $this->db->quote($ds);

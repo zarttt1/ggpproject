@@ -7,10 +7,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="public/icons/icon.png">
     <style>
-        /* --- RESET & BASIC --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         
-        /* Allow page scrolling */
         body { background-color: #117054; padding: 0; margin: 0; min-height: 100vh; overflow-x: hidden; }
 
         .main-wrapper {
@@ -23,7 +21,6 @@
             box-shadow: -20px 0 40px rgba(0,0,0,0.2); overflow: hidden;
         }
 
-        /* --- NAVBAR --- */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
@@ -46,7 +43,6 @@
         }
         .btn-signout:hover { background-color: #b71c1c; }
 
-        /* --- TABLE CARD --- */
         .table-card { 
             background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); 
             overflow: visible; 
@@ -77,7 +73,6 @@
         .btn-action-small.active-filter { background-color: #fffcf5; color: #e65100; border: 1px solid #FF9A02; }
         .btn-action-small.active-filter:hover { background-color: #fff5e0; }
         
-        /* Table Scroll Container */
         .table-responsive { width: 100%; overflow-x: auto; }
         
         table { width: 100%; border-collapse: collapse; min-width: 800px; }
@@ -104,7 +99,6 @@
         }
         .training-name-text { font-weight: 700; line-height: 1.2; font-size: 14px; }
         
-        /* Badges */
         .badge { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; }
         .type-tech { background: #E3F2FD; color: #1565C0; border: 1px solid rgba(21, 101, 192, 0.1); }
         .type-soft { background: #FFF3E0; color: #EF6C00; border: 1px solid rgba(239, 108, 0, 0.1); }

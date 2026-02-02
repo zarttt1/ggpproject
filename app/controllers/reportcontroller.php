@@ -335,7 +335,6 @@ class ReportController {
         $spreadsheet = IOFactory::load($templatePath);
         $sheet = $spreadsheet->getActiveSheet();
 
-        // --- MAPPING DATA KE EXCEL ---
         $sheet->setCellValue('C7', ': ' . ($meta['nama_training'] ?? '-'));
         $sheet->setCellValue('C8', ': ' . date('d M Y', strtotime($meta['date_start'])));
         $sheet->setCellValue('C9', ': ' . ($stats['total'] ?? 0) . ' Orang');
@@ -345,7 +344,6 @@ class ReportController {
         $sheet->setCellValue('F8', ': ' . ($meta['credit_hour'] ?? 0) . ' Jam'); 
         $sheet->setCellValue('F9', ': ' . ($meta['lembaga'] ?? '-'));
 
-        // --- LOGIKA FEEDBACK ---
         $scores = [
             12 => $stats['avg_subject'],
             13 => $stats['avg_instructor'],

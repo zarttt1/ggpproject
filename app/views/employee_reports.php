@@ -7,7 +7,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="public/icons/icon.png">
     <style>
-        /* --- GLOBAL STYLES --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         
         body { background-color: #117054; padding: 0; margin: 0; min-height: 100vh; overflow-y: auto; }
@@ -31,7 +30,6 @@
         .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
         .btn-signout:hover { background-color: #b71c1c; }
 
-        /* TABLE */
         .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; margin-top: 20px; display: flex; flex-direction: column; flex-grow: 1;}
         .table-header-strip { background-color: #197b40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
         .table-title { font-weight: 600; font-size: 16px; }
@@ -78,7 +76,6 @@
         .page-num.active { background-color: #197B40; color: white; }
         .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
 
-        /* --- FILTER DRAWER STYLES --- */
         .filter-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.05); z-index: 900; display: none; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
         .filter-drawer { position: fixed; top: 20px; bottom: 20px; right: -400px; width: 350px; background: white; z-index: 1001; box-shadow: -10px 0 30px rgba(0,0,0,0.15); transition: right 0.4s cubic-bezier(0.32, 1, 0.23, 1); display: flex; flex-direction: column; border-radius: 35px; overflow: hidden; }
         .drawer-open .filter-overlay { display: block; opacity: 1; pointer-events: auto; }
@@ -239,12 +236,10 @@
             document.getElementById('body').classList.toggle('drawer-open');
         }
 
-        // --- DYNAMIC DROPDOWNS (AJAX) ---
         function updateFilterDropdowns(trigger) {
             const bu = document.getElementById('filterBU').value;
             const fn1 = document.getElementById('filterFn1').value;
 
-            // Updated URL to point to index.php
             fetch(`index.php?action=employee_filter_options&bu=${encodeURIComponent(bu)}&fn1=${encodeURIComponent(fn1)}`)
                 .then(res => res.json())
                 .then(data => {
@@ -282,7 +277,7 @@
             const fn2 = document.getElementById('filterFn2').value;
 
             const params = new URLSearchParams();
-            params.set('action', 'employees'); // Important for router
+            params.set('action', 'employees');
             if(search) params.set('search', search);
             if(bu !== 'All BUs') params.set('bu', bu);
             if(fn1 !== 'All Func N-1') params.set('fn1', fn1);

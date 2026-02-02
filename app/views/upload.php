@@ -20,7 +20,6 @@ unset($_SESSION['upload_stats']);
         body { background-color: #117054; padding: 0; margin: 0; overflow: hidden; height: 100vh; }
         .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; height: 100vh; overflow-y: auto; width: 100%; position: relative; }
         
-        /* NAVBAR */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
@@ -38,7 +37,6 @@ unset($_SESSION['upload_stats']);
         .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
         .btn-signout:hover { background-color: #b71c1c; }
         
-        /* CONTENT */
         .content-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); margin-bottom: 50px; padding: 40px; }
         .card-header { margin-bottom: 25px; }
         .card-title { font-size: 20px; font-weight: 700; color: #197b40; }
@@ -48,7 +46,6 @@ unset($_SESSION['upload_stats']);
         .alert-error { background-color: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
         .alert-warning { background-color: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
         
-        /* STATS CARDS */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
         .stat-card { background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border-radius: 12px; padding: 20px; border: 1px solid #e9ecef; transition: transform 0.2s; }
         .stat-card:hover { transform: translateY(-2px); }
@@ -76,7 +73,6 @@ unset($_SESSION['upload_stats']);
         .btn-snake.disabled { background: #cbd5e1; color: white; cursor: not-allowed; border: none; }
         .btn-snake span { position: relative; z-index: 2; }
         
-        /* TABLE */
         .table-section-title { margin-bottom: 20px; font-size: 16px; font-weight: 700; color: #333; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; font-size: 13px; color: #888; padding: 15px 0; border-bottom: 1px solid #eee; }

@@ -8,7 +8,6 @@
     <link rel="icon" type="image/png" href="public/icons/icon.png">
 
     <style>
-        /* ... I am keeping your original CSS exactly as it was ... */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #197B40; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .main-container { background-color: #ffffff; border-radius: 20px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); display: flex; width: 900px; max-width: 95%; overflow: hidden; min-height: 550px; }
@@ -34,7 +33,6 @@
         .footer-text a { color: #1a7f5d; text-decoration: none; font-weight: bold; }
         @media (max-width: 768px) { .main-container { flex-direction: column; width: 90%; } .login-section { border-left: none; padding: 30px; } .mascot-image { max-height: 200px; } }
         
-        /* New Alert Style */
         .alert { padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px; text-align: center; }
         .alert-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>

@@ -8,7 +8,6 @@
     <link rel="icon" type="image/png" href="public/icons/icon.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* --- GLOBAL STYLES --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; overflow-y: auto; height: 100vh; }
         .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; min-height: 100vh; width: 100%; position: relative; }
@@ -72,7 +71,6 @@
         th { text-align: left; padding: 15px 25px; font-size: 12px; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background-color: #fff; border-bottom: 2px solid #eee; position: sticky; top: 0; z-index: 10; }
         td { padding: 16px 25px; font-size: 13px; color: #333; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
         
-        /* UPDATED: Compact Badges for Tags Layout */
         .badge { padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; display: inline-block; letter-spacing: 0.3px; line-height: 1.2; }
         .type-tech { background: #E3F2FD; color: #1565C0; border: 1px solid rgba(21, 101, 192, 0.1); }
         .type-soft { background: #FFF3E0; color: #EF6C00; border: 1px solid rgba(239, 108, 0, 0.1); }

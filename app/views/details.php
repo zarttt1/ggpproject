@@ -8,12 +8,10 @@
     <link rel="icon" type="image/png" href="public/icons/icon.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* --- GLOBAL STYLES --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; min-height: 100vh; overflow-y: auto; }
         .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; min-height: 100vh; width: 100%; position: relative; display: flex; flex-direction: column; }
         
-        /* NAVBAR */
         .navbar {
             background-color: #197B40; height: 70px; border-radius: 0px 0px 25px 25px; 
             display: flex; align-items: center; padding: 0 30px; justify-content: space-between; 
@@ -31,7 +29,6 @@
         .btn-signout { background-color: #d32f2f; color: white !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: 20px; transition: background 0.3s; opacity: 1 !important; }
         .btn-signout:hover { background-color: #b71c1c; }
 
-        /* --- HERO BANNER --- */
         .hero-banner {
             background: linear-gradient(135deg, #197B40 0%, #115c32 100%);
             border-radius: 25px; padding: 30px 50px; margin-bottom: 30px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; color: white; box-shadow: 0 10px 25px rgba(25, 123, 64, 0.2);
@@ -52,7 +49,6 @@
         .back-btn { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.15); color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: background 0.2s; z-index: 10; }
         .back-btn:hover { background: rgba(255,255,255,0.25); }
 
-        /* --- 3-COLUMN GRID --- */
         .charts-container { display: grid; grid-template-columns: 1fr 1fr 280px; gap: 20px; margin-bottom: 30px; }
         .chart-card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); height: 100%; }
         .chart-title { font-size: 15px; font-weight: 700; color: #197B40; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
@@ -64,7 +60,6 @@
         .sat-text p { font-size: 11px; color: #999; margin: 0; }
         .sat-value { font-size: 20px; font-weight: 700; color: #197b40; }
 
-        /* --- LEADERBOARD --- */
         .section-header { margin-bottom: 15px; font-size: 18px; font-weight: 700; color: #333; display: flex; align-items: center; gap: 10px; }
         .improver-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
         .improver-card { background: white; border-radius: 15px; padding: 20px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border-bottom: 4px solid #eee; }
@@ -77,7 +72,6 @@
         .imp-info p { font-size: 12px; color: #777; }
         .imp-score { margin-left: auto; font-size: 18px; font-weight: 800; color: #197B40; margin-right:10px}
 
-        /* --- TABLE --- */
         .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; }
         .table-header-strip { background-color: #197b40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
         .table-title { font-weight: 600; font-size: 16px; }
@@ -100,7 +94,6 @@
         .page-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
         .page-btn.active { background-color: #197B40; color: white; font-weight: 600; }
 
-        /* --- MODAL STYLES --- */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
         .modal { background: white; width: 450px; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); transform: scale(0.9); opacity: 0; transition: all 0.3s; }
         .modal.open { transform: scale(1); opacity: 1; }
@@ -111,13 +104,11 @@
         
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
-        /* Standard inputs */
         .form-group input[type="text"], .form-group input[type="number"] { 
             width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; outline: none; font-size: 14px; font-family: 'Poppins', sans-serif; 
         }
         .form-group input:focus { border-color: #197B40; }
 
-        /* DATE PILL STYLE (Matched to Reports) */
         .date-row { display: flex; gap: 10px; }
         .date-input-wrapper { position: relative; flex: 1; }
         
@@ -386,7 +377,6 @@
     <script>
         lucide.createIcons();
 
-        // --- CHART CONFIGURATION ---
         const commonOptions = {
             responsive: true,
             maintainAspectRatio: false,
@@ -409,7 +399,6 @@
 
         const labels = <?php echo json_encode($histLabels); ?>;
 
-        // 1. Pre-Test Chart
         new Chart(document.getElementById('preHistogram'), {
             type: 'bar',
             data: {
@@ -425,7 +414,6 @@
             options: commonOptions
         });
 
-        // 2. Post-Test Chart
         new Chart(document.getElementById('postHistogram'), {
             type: 'bar',
             data: {
@@ -441,7 +429,6 @@
             options: commonOptions
         });
 
-        // --- MODAL LOGIC ---
         function openEditModal() {
             document.getElementById('editModalOverlay').style.display = 'flex';
             setTimeout(() => { document.getElementById('editModal').classList.add('open'); }, 10);
@@ -453,7 +440,6 @@
             setTimeout(() => { document.getElementById('editModalOverlay').style.display = 'none'; }, 300);
         }
 
-        // --- LIVE SEARCH SCRIPT ---
         const searchInput = document.getElementById('searchInput');
         const tableBody = document.getElementById('participantTableBody');
         const paginationContainer = document.getElementById('paginationContainer');
