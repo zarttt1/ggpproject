@@ -10,8 +10,10 @@ require_once __DIR__ . '/../models/Training.php';
 class EmployeeController {
     private $empModel;
     private $trainingModel;
+    private $pdo; // Added to support direct deletion
 
     public function __construct($pdo) {
+        $this->pdo = $pdo; // Save PDO connection
         $this->empModel = new Employee($pdo);
         $this->trainingModel = new Training($pdo);
     }
@@ -252,11 +254,23 @@ class EmployeeController {
                     <td style="text-align: center;">
                         <span class="score-box"><?php echo $row['post']; ?></span>
                     </td>
+                    
+                    <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+                        <td style="text-align: center;">
+                            <form method="POST" action="index.php?action=delete_training" onsubmit="return confirm('Are you sure you want to delete this record? This cannot be undone.');" style="margin:0;">
+                                <input type="hidden" name="id_score" value="<?php echo $row['id_score']; ?>">
+                                <input type="hidden" name="id_employee" value="<?php echo $row['id_karyawan']; ?>">
+                                <button type="submit" style="background:none; border:none; cursor:pointer; color:#ef4444; padding:5px;">
+                                    <i data-lucide="trash-2" style="width:16px;"></i>
+                                </button>
+                            </form>
+                        </td>
+                    <?php endif; ?>
                 </tr>
                 <?php
             }
         } else {
-            echo '<tr><td colspan="6" style="text-align:center; padding: 25px; color:#888;">No training history found.</td></tr>';
+            echo '<tr><td colspan="7" style="text-align:center; padding: 25px; color:#888;">No training history found.</td></tr>';
         }
         return ob_get_clean();
     }
@@ -341,6 +355,36 @@ class EmployeeController {
 
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
         $writer->save('php://output');
+        exit;
+    }
+
+    // --- NEW: DELETE FUNCTION (ADDED) ---
+    public function deleteTraining() {
+        $this->checkAuth();
+
+        if (($_SESSION['role'] ?? '') !== 'admin') {
+            die("Access Denied: Admin only.");
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id_score = $_POST['id_score'] ?? null;
+            $id_employee = $_POST['id_employee'] ?? null;
+
+            if ($id_score && $id_employee) {
+                try {
+                    $stmt = $this->pdo->prepare("DELETE FROM score WHERE id_score = ?");
+                    $stmt->execute([$id_score]);
+                    // Success
+                    header("Location: index.php?action=employee_history&id=" . $id_employee . "&msg=deleted");
+                    exit;
+                } catch (Exception $e) {
+                    die("Error deleting record: " . $e->getMessage());
+                }
+            }
+        }
+        
+        // Fallback
+        header("Location: index.php?action=employees");
         exit;
     }
 }

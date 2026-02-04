@@ -16,7 +16,7 @@ class Importer {
     private function t($v) {
         if ($v === null) return '';
         if ($v instanceof \DateTimeInterface) return $v->format('Y-m-d');
-        return trim((string)$v);
+        return trim(preg_replace('/\s+/', ' ', (string)$v));
     }
 
     private function parseDate($v) {
@@ -39,12 +39,56 @@ class Importer {
         return (float) str_replace(',', '.', (string)$v);
     }
 
-    public function processFile($filePath, $ext, $username = 'System') {
+    // --- SMART NAME MATCHING ---
+    private function areNamesSimilar($name1, $name2) {
+        $n1 = strtolower(trim(preg_replace('/\s+/', ' ', $name1)));
+        $n2 = strtolower(trim(preg_replace('/\s+/', ' ', $name2)));
+
+        if ($n1 === $n2) return true;
+        if ($n1 === '' || $n2 === '') return false;
+
+        if (strpos($n1, $n2) !== false || strpos($n2, $n1) !== false) return true;
+        if (metaphone($n1) === metaphone($n2)) return true;
+
+        $tokens1 = array_values(array_filter(explode(' ', preg_replace('/[^a-z ]/', '', $n1))));
+        $tokens2 = array_values(array_filter(explode(' ', preg_replace('/[^a-z ]/', '', $n2))));
+
+        if (empty($tokens1) || empty($tokens2)) return false;
+
+        $matches = 0;
+        foreach ($tokens1 as $t1) {
+            foreach ($tokens2 as $t2) {
+                if ($t1 === $t2 || metaphone($t1) === metaphone($t2)) {
+                    $matches++;
+                    break; 
+                }
+                if ((strlen($t1) === 1 && substr($t2, 0, 1) === $t1) || (strlen($t2) === 1 && substr($t1, 0, 1) === $t2)) {
+                    $matches += 0.9; 
+                    break;
+                }
+            }
+        }
+        
+        $minWords = min(count($tokens1), count($tokens2));
+        if ($minWords === 0) return false;
+        
+        return ($matches / $minWords) > 0.65;
+    }
+
+    public function processFile($filePath, $ext, $username = 'System', $originalName = null) {
         ini_set('memory_limit', '1024M');
         set_time_limit(600);
         $scriptStart = microtime(true);
+        $logs = []; 
+        
+        $countTotal = 0;
+        $countNew = 0;
+        $countDup = 0;
+        $countSkip = 0;
+        $countWarn = 0;
 
         try {
+            // DATABASE SETUP
             $this->db->exec("CREATE TEMPORARY TABLE IF NOT EXISTS tmp_upload_keys (
                 excel_row INT, id_session INT, id_karyawan INT, 
                 nama VARCHAR(255), training VARCHAR(255), date_start DATE, 
@@ -56,22 +100,20 @@ class Importer {
             $this->db->exec("SET FOREIGN_KEY_CHECKS=0");
             $this->db->exec("SET UNIQUE_CHECKS=0");
 
-            $initialCount = (int)$this->db->query("SELECT COUNT(*) FROM score")->fetchColumn();
-
+            // CACHE
             $bu = [];
-            foreach($this->db->query("SELECT nama_bu, id_bu FROM bu") as $r) {
-                $bu[strtolower(trim($r['nama_bu']))] = $r['id_bu'];
-            }
+            foreach($this->db->query("SELECT nama_bu, id_bu FROM bu") as $r) $bu[strtolower(trim($r['nama_bu']))] = $r['id_bu'];
 
             $kar = [];
-            foreach($this->db->query("SELECT index_karyawan, id_karyawan FROM karyawan") as $r) {
-                $kar[trim($r['index_karyawan'])] = $r['id_karyawan'];
+            foreach($this->db->query("SELECT index_karyawan, id_karyawan, nama_karyawan FROM karyawan") as $r) {
+                $kar[strtolower(trim($r['index_karyawan']))] = [
+                    'id' => $r['id_karyawan'],
+                    'name' => strtolower(trim(preg_replace('/\s+/', ' ', $r['nama_karyawan'])))
+                ];
             }
 
             $train = [];
-            foreach($this->db->query("SELECT nama_training, id_training FROM training") as $r) {
-                $train[strtolower(trim($r['nama_training']))] = $r['id_training'];
-            }
+            foreach($this->db->query("SELECT nama_training, id_training FROM training") as $r) $train[strtolower(trim($r['nama_training']))] = $r['id_training'];
 
             $func = [];
             foreach ($this->db->query("SELECT id_func, func_n1, func_n2 FROM func") as $r) {
@@ -83,6 +125,12 @@ class Importer {
             foreach ($this->db->query("SELECT id_session, id_training, code_sub, date_start FROM training_session") as $r) {
                 $k = $r['id_training'] . '|' . trim($r['code_sub'] ?? '') . '|' . $r['date_start'];
                 $sess[$k] = $r['id_session'];
+            }
+
+            $existingScores = [];
+            $qScores = $this->db->query("SELECT id_session, id_karyawan FROM score");
+            while ($row = $qScores->fetch(\PDO::FETCH_NUM)) {
+                $existingScores[$row[0] . '|' . $row[1]] = true;
             }
 
             $insBU    = $this->db->prepare("INSERT INTO bu (nama_bu) VALUES (?)");
@@ -98,9 +146,7 @@ class Importer {
             $BATCH_LIMIT = 500;
             $sqlScores = [];
             $sqlKeys = [];
-            $rowsProcessed = 0;
-            $rowsSkipped = 0;
-            $excelRow = 0;
+            $excelRow = 0; 
 
             $baseScoreSQL = "INSERT INTO score (id_session, id_karyawan, id_bu, id_func, pre, post, statis_subject, instructor, statis_infras) VALUES ";
             $baseKeysSQL  = "INSERT INTO tmp_upload_keys (excel_row, id_session, id_karyawan, nama, training, date_start) VALUES ";
@@ -112,16 +158,23 @@ class Importer {
                     if ($excelRow === 1) continue; 
 
                     $r = $row->toArray();
-                    $rowsProcessed++;
+                    $countTotal++;
+                    $rowStatus = 'New';
+                    $hasWarning = false;
+                    $rowMsg = [];
 
                     $idx  = $this->t($r[0] ?? '');
                     $name = $this->t($r[1] ?? '');
                     $subj = $this->t($r[2] ?? '');
                     $ds   = $this->parseDate($r[4] ?? null);
 
-                    if (!$idx || !$subj || !$ds) { $rowsSkipped++; continue; }
+                    if (!$idx || !$subj || !$ds) { 
+                        $countSkip++;
+                        $logs[] = ['row' => $excelRow, 'status' => 'Skipped', 'msg' => 'Missing Index, Subject, or Date'];
+                        continue; 
+                    }
 
-                    
+                    // RESOLVE IDS
                     $b = $this->t($r[18] ?? '');
                     $bKey = strtolower($b);
                     if ($b !== '' && !isset($bu[$bKey])) {
@@ -130,7 +183,6 @@ class Importer {
                     }
                     $bid = $bu[$bKey] ?? null;
 
-                    // FUNC
                     $f1 = $this->t($r[19] ?? '');
                     $f2 = $this->t($r[20] ?? '') ?: null;
                     $fk = strtolower($f1) . '|' . strtolower($f2 ?? '');
@@ -140,51 +192,75 @@ class Importer {
                     }
                     $fid = $func[$fk] ?? null;
 
-                    if (!isset($kar[$idx])) {
+                    // EMPLOYEE IDENTITY (TRUST INDEX)
+                    $idxKey = strtolower($idx);
+                    if (isset($kar[$idxKey])) {
+                        $dbName = $kar[$idxKey]['name'];
+                        
+                        if (!$this->areNamesSimilar($name, $dbName)) {
+                            $hasWarning = true;
+                            // *** UPDATED LOG MESSAGE WITH ID ***
+                            $rowMsg[] = "ID '$idx' in DB is '$dbName', but File says '$name'. Inserted using DB Identity.";
+                        } 
+                        $kid = $kar[$idxKey]['id'];
+                    } else {
                         $insKar->execute([$idx, $name]);
-                        $kar[$idx] = $this->db->lastInsertId();
+                        $kid = $this->db->lastInsertId();
+                        $kar[$idxKey] = ['id' => $kid, 'name' => strtolower(trim(preg_replace('/\s+/', ' ', $name)))];
                     }
-                    $kid = $kar[$idx];
 
+                    // TRAINING
                     $subjKey = strtolower($subj);
                     if (!isset($train[$subjKey])) {
-                        $insTrain->execute([
-                            $subj,
-                            $this->t($r[21] ?? ''), 
-                            $this->t($r[8] ?? ''),  
-                            $this->t($r[13] ?? ''), 
-                            $this->t($r[14] ?? '')  
-                        ]);
+                        $insTrain->execute([$subj, $this->t($r[21] ?? ''), $this->t($r[8] ?? ''), $this->t($r[13] ?? ''), $this->t($r[14] ?? '')]);
                         $train[$subjKey] = $this->db->lastInsertId();
                     }
                     $tid = $train[$subjKey];
 
+                    // SESSION
                     $codeSub = $this->t($r[3] ?? '');
                     $sk = $tid . '|' . $codeSub . '|' . $ds;
                     
-                    if (!isset($sess[$sk])) {
+                    if (isset($sess[$sk])) {
+                        $sid = $sess[$sk];
+                    } else {
                         $de = $this->parseDate($r[5] ?? null) ?: $ds;
                         $rawCredit = $r[6] ?? 0;
                         $creditHours = (float)(is_numeric($rawCredit) ? $rawCredit : str_replace(',', '.', (string)$rawCredit));
-                        
-                        $insSess->execute([
-                            $tid, 
-                            $codeSub, 
-                            $this->t($r[10] ?? ''), 
-                            $ds, 
-                            $de, 
-                            $creditHours, 
-                            $this->t($r[7] ?? ''),  
-                            $this->t($r[9] ?? '')   
-                        ]);
-                        $sess[$sk] = $this->db->lastInsertId();
+                        $insSess->execute([$tid, $codeSub, $this->t($r[10] ?? ''), $ds, $de, $creditHours, $this->t($r[7] ?? ''), $this->t($r[9] ?? '')]);
+                        $sid = $this->db->lastInsertId();
+                        $sess[$sk] = $sid;
                     }
-                    $sid = $sess[$sk];
+
+                    // STATUS
+                    $scoreKey = $sid . '|' . $kid;
+                    $isDuplicateScore = isset($existingScores[$scoreKey]);
+
+                    if ($isDuplicateScore) {
+                        $rowStatus = 'Duplicate';
+                        $countDup++;
+                        $rowMsg[] = "Record updated.";
+                    } else {
+                        $rowStatus = 'New';
+                        $countNew++;
+                    }
+
+                    if ($hasWarning) {
+                        $rowStatus = 'Warning';
+                        $countWarn++;
+                    }
+
+                    if (!$isDuplicateScore) $existingScores[$scoreKey] = true;
+
+                    $logs[] = [
+                        'row' => $excelRow, 
+                        'status' => $rowStatus, 
+                        'msg' => empty($rowMsg) ? 'Successfully inserted.' : implode(' | ', $rowMsg)
+                    ];
 
                     $q_name = $this->db->quote($name);
                     $q_subj = $this->db->quote($subj);
                     $q_ds   = $this->db->quote($ds);
-                    
                     $sqlKeys[] = "($excelRow, $sid, $kid, $q_name, $q_subj, $q_ds)";
 
                     $v_pre  = $this->f($r[11] ?? null);
@@ -215,19 +291,22 @@ class Importer {
             $this->db->exec("SET UNIQUE_CHECKS=1");
             $this->db->commit();
 
-            $finalCount = (int)$this->db->query("SELECT COUNT(*) FROM score")->fetchColumn();
-            $processed = $rowsProcessed - $rowsSkipped;
-            $inserted = max(0, $finalCount - $initialCount);
-            $updated = max(0, $processed - $inserted);
             $time = number_format(microtime(true) - $scriptStart, 2);
-
+            $displayName = $originalName ?? basename($filePath);
             $stmtLog = $this->db->prepare("INSERT INTO uploads (file_name, uploaded_by, status, rows_processed) VALUES (?,?,?,?)");
-            $stmtLog->execute([basename($filePath), $username, 'Success', $processed]);
+            $stmtLog->execute([$displayName, $username, 'Success', $countTotal]);
 
             return [
                 'status' => 'success',
-                'message' => "Processed in <b>{$time}s</b> | Total: {$processed} | Inserted: {$inserted} | Updated: {$updated}",
-                'stats' => ['total' => $processed, 'unique' => $inserted, 'duplicates' => $updated, 'skipped' => $rowsSkipped]
+                'message' => "Processed in <b>{$time}s</b>",
+                'stats' => [
+                    'total' => $countTotal, 
+                    'unique' => $countNew, 
+                    'duplicates' => $countDup, 
+                    'skipped' => $countSkip,
+                    'warnings' => $countWarn
+                ],
+                'logs' => $logs
             ];
 
         } catch (\Exception $e) {

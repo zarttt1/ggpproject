@@ -108,7 +108,7 @@ class Employee {
 
     public function getEmployeeById($id) {
         $sql = "SELECT 
-                    k.nama_karyawan, k.index_karyawan,
+                    k.id_karyawan, k.nama_karyawan, k.index_karyawan,
                     (SELECT b.nama_bu FROM score s JOIN bu b ON s.id_bu = b.id_bu WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as bu,
                     (SELECT f.func_n1 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as func,
                     (SELECT f.func_n2 FROM score s JOIN func f ON s.id_func = f.id_func WHERE s.id_karyawan = k.id_karyawan ORDER BY s.id_session DESC LIMIT 1) as func2
@@ -156,6 +156,7 @@ class Employee {
         $totalRecords = $stmtCount->fetchColumn();
 
         $sql = "SELECT 
+                    s.id_score, s.id_karyawan,
                     t.nama_training, t.jenis AS category, t.type AS training_type, t.instructor_name AS instructor_name,t.lembaga,
                     ts.date_start, ts.date_end, ts.method, ts.place, ts.credit_hour,
                     s.pre, s.post

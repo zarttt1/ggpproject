@@ -66,11 +66,32 @@ public function getTypes() {
         $stmt->execute($params);
         $total = $stmt->fetchColumn() ?? 0;
 
-        $stmt = $this->db->prepare("SELECT SUM(ts.credit_hour) FROM score s JOIN training_session ts ON s.id_session = ts.id_session JOIN training t ON ts.id_training = t.id_training LEFT JOIN bu b ON s.id_bu = b.id_bu LEFT JOIN func f ON s.id_func = f.id_func WHERE $where AND (ts.method LIKE '%Inclass%')");
+// 1. Calculate Offline (Inclass + Field Trip)
+        $stmt = $this->db->prepare("SELECT SUM(ts.credit_hour) 
+            FROM score s 
+            JOIN training_session ts ON s.id_session = ts.id_session 
+            JOIN training t ON ts.id_training = t.id_training 
+            LEFT JOIN bu b ON s.id_bu = b.id_bu 
+            LEFT JOIN func f ON s.id_func = f.id_func 
+            WHERE $where 
+            AND (ts.method LIKE '%Inclass%' OR ts.method LIKE '%Field Trip%')");
         $stmt->execute($params);
         $offline = $stmt->fetchColumn() ?? 0;
 
-        $stmt = $this->db->prepare("SELECT SUM(ts.credit_hour) FROM score s JOIN training_session ts ON s.id_session = ts.id_session JOIN training t ON ts.id_training = t.id_training LEFT JOIN bu b ON s.id_bu = b.id_bu LEFT JOIN func f ON s.id_func = f.id_func WHERE $where AND (ts.method LIKE '%Hybrid%' OR ts.method LIKE '%Webinar%' OR ts.method LIKE '%Self-paced%')");
+        $stmt = $this->db->prepare("SELECT SUM(ts.credit_hour) 
+            FROM score s 
+            JOIN training_session ts ON s.id_session = ts.id_session 
+            JOIN training t ON ts.id_training = t.id_training 
+            LEFT JOIN bu b ON s.id_bu = b.id_bu 
+            LEFT JOIN func f ON s.id_func = f.id_func 
+            WHERE $where 
+            AND (
+                ts.method LIKE '%Hybrid%' OR 
+                ts.method LIKE '%Blended%' OR 
+                ts.method LIKE '%Webinar%' OR 
+                ts.method LIKE '%Self-paced%' OR 
+                ts.method LIKE '%Self-placed%'
+            )");
         $stmt->execute($params);
         $online = $stmt->fetchColumn() ?? 0;
 

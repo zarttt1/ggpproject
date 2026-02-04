@@ -72,7 +72,7 @@
         .imp-info p { font-size: 12px; color: #777; }
         .imp-score { margin-left: auto; font-size: 18px; font-weight: 800; color: #197B40; margin-right:10px}
 
-        .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; }
+        .table-card { background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 40px; display: flex; flex-direction: column; }
         .table-header-strip { background-color: #197b40; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
         .table-title { font-weight: 600; font-size: 16px; }
         .table-actions { display: flex; gap: 12px; align-items: center; }
@@ -90,9 +90,54 @@
         .user-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: #197B40; color: white; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
         .badge-improvement { background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         .badge-decline { background-color: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
-        .pagination-container { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666; }
-        .page-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: #666; text-decoration: none; }
-        .page-btn.active { background-color: #197B40; color: white; font-weight: 600; }
+        
+        /* --- FIXED PAGINATION STYLES --- */
+        .pagination-container { 
+            padding: 15px 25px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            font-size: 13px; 
+            color: #666; 
+            border-top: 1px solid #eee;
+            background: #fff; /* Ensure white background */
+        }
+        .pagination-controls { display: flex; align-items: center; gap: 8px; }
+        .page-btn { 
+            width: 32px; 
+            height: 32px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            border-radius: 8px; /* Slightly rounder */
+            cursor: pointer; 
+            color: #555; 
+            text-decoration: none; 
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .page-btn:hover { background-color: #f3f4f6; }
+        .page-btn.active { 
+            background-color: #197B40; 
+            color: white; 
+            font-weight: 600; 
+            box-shadow: 0 2px 5px rgba(25, 123, 64, 0.2);
+        }
+        .btn-prev-next {
+            padding: 0 12px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #555;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .btn-prev-next:hover { background-color: #f3f4f6; color: #197B40; }
+        .btn-prev-next.disabled { opacity: 0.5; pointer-events: none; }
 
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
         .modal { background: white; width: 450px; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); transform: scale(0.9); opacity: 0; transition: all 0.3s; }
@@ -160,6 +205,7 @@
             .table-header-strip { flex-direction: column; gap: 15px; }
             .table-actions { width: 100%; flex-direction: column; }
             .search-box { width: 100%; }
+            .pagination-container { flex-direction: column; gap: 15px; align-items: center; } /* Stack on mobile */
         }
     </style>
 </head>

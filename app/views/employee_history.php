@@ -86,6 +86,10 @@
         .page-num.active { background-color: #197B40; color: white; }
         .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
         
+        /* NEW: Delete Button Style */
+        .btn-delete { background: none; border: none; cursor: pointer; color: #ef4444; padding: 6px; border-radius: 50%; transition: background 0.2s; display: flex; align-items: center; justify-content: center; }
+        .btn-delete:hover { background-color: #fee2e2; }
+
         @media (max-width: 1024px) {
             .navbar { margin: -20px -20px 20px -20px; padding-left: 30px; padding-right: 30px; }
             .top-grid { grid-template-columns: 1fr; }
@@ -208,6 +212,9 @@
                             <th style="text-align: center;">Credit</th>
                             <th style="text-align: center;">Pre Score</th>
                             <th style="text-align: center;">Post Score</th>
+                            <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+                                <th style="width: 50px; text-align: center;">Action</th>
+                            <?php endif; ?>
                         </tr>
                     </thead>
                     <tbody id="historyTableBody">
