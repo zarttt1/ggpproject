@@ -25,17 +25,14 @@ class UploadController {
     public function index() {
         $this->checkAdmin();
         
-        // --- 1. RETRIEVE LOGS (The part that was likely failing) ---
         $uploadMessage = $_SESSION['upload_message'] ?? '';
         $uploadStats = $_SESSION['upload_stats'] ?? null;
-        $logs = $_SESSION['upload_logs'] ?? []; // Gets row logs
+        $logs = $_SESSION['upload_logs'] ?? [];
         
-        // Clear them so they don't persist on refresh
         unset($_SESSION['upload_message'], $_SESSION['upload_stats'], $_SESSION['upload_logs']);
 
         $history = $this->importer->getHistory();
         
-        // Load view (variables $logs, $uploadStats will be available inside)
         require 'app/views/upload.php';
     }
 
@@ -64,14 +61,12 @@ class UploadController {
             if (move_uploaded_file($file['tmp_name'], $target)) {
                 $originalName = basename($file['name']);
                 
-                // Process
                 $result = $this->importer->processFile($target, $ext, $_SESSION['username'] ?? 'Admin', $originalName);
                 
                 if ($result['status'] === 'success') {
                     $_SESSION['upload_message'] = $result['message'];
                     $_SESSION['upload_stats'] = $result['stats'];
                     
-                    // --- 2. SAVE LOGS (The other missing part) ---
                     $_SESSION['upload_logs'] = $result['logs']; 
                     
                     header("Location: index.php?action=upload&status=success");

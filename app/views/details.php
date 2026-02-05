@@ -91,7 +91,6 @@
         .badge-improvement { background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         .badge-decline { background-color: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
         
-        /* --- FIXED PAGINATION STYLES --- */
         .pagination-container { 
             padding: 15px 25px; 
             display: flex; 
@@ -100,7 +99,7 @@
             font-size: 13px; 
             color: #666; 
             border-top: 1px solid #eee;
-            background: #fff; /* Ensure white background */
+            background: #fff;
         }
         .pagination-controls { display: flex; align-items: center; gap: 8px; }
         .page-btn { 
@@ -109,7 +108,7 @@
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            border-radius: 8px; /* Slightly rounder */
+            border-radius: 8px;
             cursor: pointer; 
             color: #555; 
             text-decoration: none; 
@@ -205,7 +204,7 @@
             .table-header-strip { flex-direction: column; gap: 15px; }
             .table-actions { width: 100%; flex-direction: column; }
             .search-box { width: 100%; }
-            .pagination-container { flex-direction: column; gap: 15px; align-items: center; } /* Stack on mobile */
+            .pagination-container { flex-direction: column; gap: 15px; align-items: center; }
         }
     </style>
 </head>

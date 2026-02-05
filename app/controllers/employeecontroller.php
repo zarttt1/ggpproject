@@ -10,10 +10,10 @@ require_once __DIR__ . '/../models/Training.php';
 class EmployeeController {
     private $empModel;
     private $trainingModel;
-    private $pdo; // Added to support direct deletion
+    private $pdo;
 
     public function __construct($pdo) {
-        $this->pdo = $pdo; // Save PDO connection
+        $this->pdo = $pdo;
         $this->empModel = new Employee($pdo);
         $this->trainingModel = new Training($pdo);
     }
@@ -358,7 +358,6 @@ class EmployeeController {
         exit;
     }
 
-    // --- NEW: DELETE FUNCTION (ADDED) ---
     public function deleteTraining() {
         $this->checkAuth();
 
@@ -374,7 +373,6 @@ class EmployeeController {
                 try {
                     $stmt = $this->pdo->prepare("DELETE FROM score WHERE id_score = ?");
                     $stmt->execute([$id_score]);
-                    // Success
                     header("Location: index.php?action=employee_history&id=" . $id_employee . "&msg=deleted");
                     exit;
                 } catch (Exception $e) {
@@ -383,7 +381,6 @@ class EmployeeController {
             }
         }
         
-        // Fallback
         header("Location: index.php?action=employees");
         exit;
     }

@@ -39,7 +39,6 @@ class Importer {
         return (float) str_replace(',', '.', (string)$v);
     }
 
-    // --- SMART NAME MATCHING ---
     private function areNamesSimilar($name1, $name2) {
         $n1 = strtolower(trim(preg_replace('/\s+/', ' ', $name1)));
         $n2 = strtolower(trim(preg_replace('/\s+/', ' ', $name2)));
@@ -88,7 +87,6 @@ class Importer {
         $countWarn = 0;
 
         try {
-            // DATABASE SETUP
             $this->db->exec("CREATE TEMPORARY TABLE IF NOT EXISTS tmp_upload_keys (
                 excel_row INT, id_session INT, id_karyawan INT, 
                 nama VARCHAR(255), training VARCHAR(255), date_start DATE, 
@@ -100,7 +98,6 @@ class Importer {
             $this->db->exec("SET FOREIGN_KEY_CHECKS=0");
             $this->db->exec("SET UNIQUE_CHECKS=0");
 
-            // CACHE
             $bu = [];
             foreach($this->db->query("SELECT nama_bu, id_bu FROM bu") as $r) $bu[strtolower(trim($r['nama_bu']))] = $r['id_bu'];
 
@@ -174,7 +171,6 @@ class Importer {
                         continue; 
                     }
 
-                    // RESOLVE IDS
                     $b = $this->t($r[18] ?? '');
                     $bKey = strtolower($b);
                     if ($b !== '' && !isset($bu[$bKey])) {
@@ -192,14 +188,12 @@ class Importer {
                     }
                     $fid = $func[$fk] ?? null;
 
-                    // EMPLOYEE IDENTITY (TRUST INDEX)
                     $idxKey = strtolower($idx);
                     if (isset($kar[$idxKey])) {
                         $dbName = $kar[$idxKey]['name'];
                         
                         if (!$this->areNamesSimilar($name, $dbName)) {
                             $hasWarning = true;
-                            // *** UPDATED LOG MESSAGE WITH ID ***
                             $rowMsg[] = "ID '$idx' in DB is '$dbName', but File says '$name'. Inserted using DB Identity.";
                         } 
                         $kid = $kar[$idxKey]['id'];
@@ -209,7 +203,6 @@ class Importer {
                         $kar[$idxKey] = ['id' => $kid, 'name' => strtolower(trim(preg_replace('/\s+/', ' ', $name)))];
                     }
 
-                    // TRAINING
                     $subjKey = strtolower($subj);
                     if (!isset($train[$subjKey])) {
                         $insTrain->execute([$subj, $this->t($r[21] ?? ''), $this->t($r[8] ?? ''), $this->t($r[13] ?? ''), $this->t($r[14] ?? '')]);
@@ -217,7 +210,6 @@ class Importer {
                     }
                     $tid = $train[$subjKey];
 
-                    // SESSION
                     $codeSub = $this->t($r[3] ?? '');
                     $sk = $tid . '|' . $codeSub . '|' . $ds;
                     
@@ -232,7 +224,6 @@ class Importer {
                         $sess[$sk] = $sid;
                     }
 
-                    // STATUS
                     $scoreKey = $sid . '|' . $kid;
                     $isDuplicateScore = isset($existingScores[$scoreKey]);
 

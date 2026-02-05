@@ -2,8 +2,6 @@
 $username = $_SESSION['username'] ?? 'User';
 $initials = strtoupper(substr($username, 0, 2));
 
-// Variables passed from Controller directly (not via SESSION here, because Controller already extracted them)
-// But just in case you use this file standalone, we keep these lines as fallback, though Controller does the unset.
 if (!isset($logs)) {
     $logs = $_SESSION['upload_logs'] ?? [];
     $uploadMessage = $_SESSION['upload_message'] ?? '';

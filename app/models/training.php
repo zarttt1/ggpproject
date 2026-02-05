@@ -66,7 +66,6 @@ public function getTypes() {
         $stmt->execute($params);
         $total = $stmt->fetchColumn() ?? 0;
 
-// 1. Calculate Offline (Inclass + Field Trip)
         $stmt = $this->db->prepare("SELECT SUM(ts.credit_hour) 
             FROM score s 
             JOIN training_session ts ON s.id_session = ts.id_session 
