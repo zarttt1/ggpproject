@@ -178,5 +178,11 @@ class Employee {
             'current_page' => $page
         ];
     }
+
+    public function updateEmployee($id, $name, $index) {
+        $sql = "UPDATE karyawan SET nama_karyawan = ?, index_karyawan = ? WHERE id_karyawan = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$name, $index, $id]);
+    }
 }
 ?>

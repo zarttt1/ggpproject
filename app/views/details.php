@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="public/icons/icon.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* ... [Standard Styles Kept Same] ... */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: #117054; padding: 0; margin: 0; min-height: 100vh; overflow-y: auto; }
         .main-wrapper { background-color: #f3f4f7; padding: 20px 40px; min-height: 100vh; width: 100%; position: relative; display: flex; flex-direction: column; }
@@ -154,8 +155,8 @@
         .form-group input:focus { border-color: #197B40; }
 
         .date-row { display: flex; gap: 10px; }
-        .date-input-wrapper { position: relative; flex: 1; }
-        
+        .date-input-wrapper { position: relative; flex: 1; cursor: pointer; }
+
         .date-input-wrapper input[type="date"] { 
             width: 100%; 
             padding: 10px 15px 10px 40px; 
@@ -169,11 +170,21 @@
             cursor: pointer; 
             transition: all 0.2s; 
             position: relative;
+            
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
         }
         
         .date-input-wrapper input[type="date"]:hover, 
         .date-input-wrapper input[type="date"]:focus { border-color: #197B40; box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1); }
-        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; color: transparent; background: transparent; cursor: pointer; }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            display: none !important;
+            opacity: 0 !important;
+            width: 0 !important;
+        }
+        
         .date-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #197B40; width: 16px; pointer-events: none; z-index: 1; }
 
         .modal-footer { display: flex; gap: 10px; margin-top: 25px; }
@@ -215,7 +226,7 @@
             <div class="logo-section"><img src="public/GGF White.png" alt="GGF Logo"></div>
             <div class="nav-links">
                 <a href="index.php?action=dashboard">Dashboard</a>
-                <a href="index.php?action=reports" class="active">Trainings</a>
+                <a href="index.php?action=reports">Trainings</a>
                 <a href="index.php?action=employees">Employees</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="index.php?action=upload">Upload Data</a>
@@ -484,6 +495,19 @@
             document.getElementById('editModal').classList.remove('open');
             setTimeout(() => { document.getElementById('editModalOverlay').style.display = 'none'; }, 300);
         }
+
+        document.querySelectorAll('.date-input-wrapper').forEach(wrapper => {
+            wrapper.addEventListener('click', (e) => {
+                const input = wrapper.querySelector('input[type="date"]');
+                if (!input) return;
+                
+                if (typeof input.showPicker === 'function') {
+                    input.showPicker();
+                } else {
+                    input.focus();
+                }
+            });
+        });
 
         const searchInput = document.getElementById('searchInput');
         const tableBody = document.getElementById('participantTableBody');

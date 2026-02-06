@@ -74,6 +74,13 @@ class Importer {
         return ($matches / $minWords) > 0.65;
     }
 
+    private function generateConflictIndex($originalIdx, $name) {
+        $parts = explode(' ', trim($name));
+        $suffix = preg_replace('/[^a-zA-Z0-9]/', '', $parts[0] ?? 'Dup');
+        $suffix = substr($suffix, 0, 10);
+        return $originalIdx . '_' . $suffix;
+    }
+
     public function processFile($filePath, $ext, $username = 'System', $originalName = null) {
         ini_set('memory_limit', '1024M');
         set_time_limit(600);
@@ -85,6 +92,7 @@ class Importer {
         $countDup = 0;
         $countSkip = 0;
         $countWarn = 0;
+        $countConflict = 0;
 
         try {
             $this->db->exec("CREATE TEMPORARY TABLE IF NOT EXISTS tmp_upload_keys (
@@ -188,16 +196,46 @@ class Importer {
                     }
                     $fid = $func[$fk] ?? null;
 
+                    // --- INSERT LOGIC ---
                     $idxKey = strtolower($idx);
+                    $kid = null;
+
                     if (isset($kar[$idxKey])) {
+                        // Case A: ID Exists
                         $dbName = $kar[$idxKey]['name'];
                         
-                        if (!$this->areNamesSimilar($name, $dbName)) {
-                            $hasWarning = true;
-                            $rowMsg[] = "ID '$idx' in DB is '$dbName', but File says '$name'. Inserted using DB Identity.";
-                        } 
-                        $kid = $kar[$idxKey]['id'];
+                        if ($this->areNamesSimilar($name, $dbName)) {
+                            // Match Found then Merge
+                            $kid = $kar[$idxKey]['id'];
+
+                            // SOFT MERGE WARNING: If names aren't exact
+                            if ($name !== $dbName && strtolower(trim($name)) !== strtolower(trim($dbName))) {
+                                $hasWarning = true;
+                                $rowMsg[] = "Soft Merge: File '$name' merged into DB '$dbName'";
+                            }
+
+                        } else {
+                            // Mismatch (Conflict) -> Fork IT!
+                            $forkedIdx = $this->generateConflictIndex($idx, $name);
+                            $forkedKey = strtolower($forkedIdx);
+
+                            if (isset($kar[$forkedKey])) {
+                                $kid = $kar[$forkedKey]['id'];
+                            } else {
+                                $insKar->execute([$forkedIdx, $name]);
+                                $kid = $this->db->lastInsertId();
+                                $kar[$forkedKey] = [
+                                    'id' => $kid, 
+                                    'name' => strtolower(trim(preg_replace('/\s+/', ' ', $name)))
+                                ];
+                                
+                                $countConflict++;
+                                $rowStatus = 'Conflict';
+                                $rowMsg[] = "Identity Conflict: ID '$idx' is '$dbName' in DB. Forked '$name' to ID '$forkedIdx'.";
+                            }
+                        }
                     } else {
+                        // Case B: Completely New ID
                         $insKar->execute([$idx, $name]);
                         $kid = $this->db->lastInsertId();
                         $kar[$idxKey] = ['id' => $kid, 'name' => strtolower(trim(preg_replace('/\s+/', ' ', $name)))];
@@ -228,17 +266,19 @@ class Importer {
                     $isDuplicateScore = isset($existingScores[$scoreKey]);
 
                     if ($isDuplicateScore) {
-                        $rowStatus = 'Duplicate';
+                        if ($rowStatus !== 'Conflict') $rowStatus = 'Duplicate';
                         $countDup++;
-                        $rowMsg[] = "Record updated.";
+                        $rowMsg[] = "Score Updated";
                     } else {
-                        $rowStatus = 'New';
+                        if ($rowStatus !== 'Conflict') $rowStatus = 'New';
                         $countNew++;
                     }
 
                     if ($hasWarning) {
-                        $rowStatus = 'Warning';
-                        $countWarn++;
+                        if ($rowStatus !== 'Conflict') {
+                            $rowStatus = 'Warning';
+                            $countWarn++;
+                        }
                     }
 
                     if (!$isDuplicateScore) $existingScores[$scoreKey] = true;
@@ -246,7 +286,7 @@ class Importer {
                     $logs[] = [
                         'row' => $excelRow, 
                         'status' => $rowStatus, 
-                        'msg' => empty($rowMsg) ? 'Successfully inserted.' : implode(' | ', $rowMsg)
+                        'msg' => empty($rowMsg) ? 'Success' : implode(' | ', $rowMsg)
                     ];
 
                     $q_name = $this->db->quote($name);
@@ -295,7 +335,8 @@ class Importer {
                     'unique' => $countNew, 
                     'duplicates' => $countDup, 
                     'skipped' => $countSkip,
-                    'warnings' => $countWarn
+                    'warnings' => $countWarn,
+                    'conflicts' => $countConflict
                 ],
                 'logs' => $logs
             ];

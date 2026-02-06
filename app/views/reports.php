@@ -141,16 +141,34 @@
         .filter-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
         .date-row { display: flex; gap: 10px; }
         
-        .date-input-wrapper { position: relative; flex: 1; }
+        .date-input-wrapper { position: relative; flex: 1; cursor: pointer; }
+        
         .date-input-wrapper input[type="date"] { 
             width: 100%; padding: 10px 15px 10px 40px; border: 1px solid #e0e0e0; 
             border-radius: 50px; font-size: 13px; outline: none; color: #333; font-family: 'Poppins', sans-serif;
             background-color: #fff; cursor: pointer; transition: all 0.2s; position: relative;
+            
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+            appearance: none;
         }
-        .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-            width: 100%; height: 100%; color: transparent; background: transparent; cursor: pointer;
+        
+        .date-input-wrapper input[type="date"]:hover, 
+        .date-input-wrapper input[type="date"]:focus { border-color: #197B40; box-shadow: 0 2px 8px rgba(25, 123, 64, 0.1); }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            width: 0 !important;
+            -webkit-appearance: none !important;
         }
+
+        input[type="date"]::-webkit-clear-button {
+            display: none;
+            -webkit-appearance: none;
+        }
+        
         .date-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #197B40; width: 16px; pointer-events: none; z-index: 1; }
 
         .filter-group select { width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 8px; outline: none; font-size: 13px; color: #333; appearance: none; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>') no-repeat right 12px center; }
@@ -343,6 +361,19 @@
         function toggleDrawer() {
             document.getElementById('body').classList.toggle('drawer-open');
         }
+
+        document.querySelectorAll('.date-input-wrapper').forEach(wrapper => {
+            wrapper.addEventListener('click', (e) => {
+                const input = wrapper.querySelector('input[type="date"]');
+                if (!input) return;
+                
+                if (typeof input.showPicker === 'function') {
+                    input.showPicker();
+                } else {
+                    input.focus();
+                }
+            });
+        });
 
         const searchInput = document.getElementById('liveSearchInput');
         const tableBody = document.getElementById('tableBody');

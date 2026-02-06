@@ -39,7 +39,7 @@
         .hero-mascot img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2)); }
         .hero-content { flex-grow: 1; display: flex; flex-direction: column; gap: 10px; z-index: 2; }
         .hero-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; font-weight: 600; }
-        .hero-name { font-size: 28px; font-weight: 700; line-height: 1.1; margin: 0; }
+        .hero-name { font-size: 28px; font-weight: 700; line-height: 1.1; margin: 0; display: flex; align-items: center; gap: 10px; }
         .hero-id { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block; width: fit-content; margin-bottom: 5px;margin-top: 4px; }
         .hero-details-stack { display: flex; flex-direction: column; gap: 4px; font-size: 13px; opacity: 0.95; margin-top: 5px; }
         .detail-row { display: flex; align-items: center; gap: 8px; }
@@ -86,9 +86,29 @@
         .page-num.active { background-color: #197B40; color: white; }
         .btn-next { display: flex; align-items: center; gap: 5px; color: #4a4a4a; text-decoration: none; cursor: pointer; }
         
-        /* NEW: Delete Button Style */
         .btn-delete { background: none; border: none; cursor: pointer; color: #ef4444; padding: 6px; border-radius: 50%; transition: background 0.2s; display: flex; align-items: center; justify-content: center; }
         .btn-delete:hover { background-color: #fee2e2; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal { background: white; width: 400px; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); transform: scale(0.9); opacity: 0; transition: all 0.3s; }
+        .modal.open { transform: scale(1); opacity: 1; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-title { font-size: 18px; font-weight: 700; color: #333; }
+        .modal-close { cursor: pointer; color: #888; transition: 0.2s; }
+        .modal-close:hover { color: #333; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
+        .form-group input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; outline: none; font-size: 14px; font-family: 'Poppins', sans-serif; }
+        .form-group input:focus { border-color: #197B40; }
+
+        .modal-footer { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-cancel { flex: 1; background: #f3f4f7; color: #666; border: none; padding: 12px; border-radius: 50px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-cancel:hover { background: #e0e0e0; }
+        .btn-save { flex: 1; background: #197B40; color: white; border: none; padding: 12px; border-radius: 50px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn-save:hover { background: #145a32; }
+
+        .edit-icon:hover { opacity: 1 !important; transform: scale(1.1); transition: 0.2s; }
 
         @media (max-width: 1024px) {
             .navbar { margin: -20px -20px 20px -20px; padding-left: 30px; padding-right: 30px; }
@@ -102,6 +122,7 @@
             .table-header-strip { flex-direction: column; gap: 15px; align-items: stretch; }
             .table-actions { flex-direction: column; width: 100%; }
             .search-box { width: 100%; }
+            .hero-name { justify-content: center; }
         }
     </style>
 </head>
@@ -116,8 +137,6 @@
                 <a href="index.php?action=employees" class="active">Employees</a>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="index.php?action=upload">Upload Data</a>
-                <?php endif; ?>
-                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                     <a href="index.php?action=users">Users</a>
                 <?php endif; ?>
             </div>
@@ -128,7 +147,6 @@
         </nav>
 
         <div class="top-grid">
-            
             <div class="hero-banner">
                 <a href="index.php?action=employees" class="back-btn"><i data-lucide="arrow-left" style="width:14px;"></i> Back</a>
 
@@ -139,7 +157,14 @@
                 <div class="hero-content">
                     <div>
                         <span class="hero-label">Employee Profile</span>
-                        <h1 class="hero-name"><?php echo htmlspecialchars($employee['nama_karyawan']); ?></h1>
+                        
+                        <h1 class="hero-name">
+                            <?php echo htmlspecialchars($employee['nama_karyawan']); ?>
+                            <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+                                <i data-lucide="edit-2" class="edit-icon" onclick="openEditModal()" style="width:18px; cursor:pointer; margin-left:10px; opacity:0.7; color: #FED404;"></i>
+                            <?php endif; ?>
+                        </h1>
+                        
                         <span class="hero-id">Index : <?php echo htmlspecialchars($employee['index_karyawan']); ?></span>
                     </div>
 
@@ -183,7 +208,6 @@
                     <canvas id="mixChart"></canvas>
                 </div>
             </div>
-
         </div>
 
         <div class="table-card">
@@ -229,9 +253,48 @@
         </div>
     </div>
 
+    <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+    <div class="modal-overlay" id="editModalOverlay" onclick="closeEditModal(event)">
+        <div class="modal" id="editModal">
+            <div class="modal-header">
+                <div class="modal-title">Edit Employee</div>
+                <i data-lucide="x" class="modal-close" onclick="closeEditModal()"></i>
+            </div>
+            <form method="POST" action="index.php?action=update_employee">
+                <input type="hidden" name="id_karyawan" value="<?php echo $id; ?>">
+                
+                <div class="form-group">
+                    <label>Employee Name</label>
+                    <input type="text" name="nama_karyawan" value="<?php echo htmlspecialchars($employee['nama_karyawan']); ?>" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Index</label>
+                    <input type="text" name="index_karyawan" value="<?php echo htmlspecialchars($employee['index_karyawan']); ?>" required>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn-save">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         lucide.createIcons();
+
+        function openEditModal() {
+            document.getElementById('editModalOverlay').style.display = 'flex';
+            setTimeout(() => { document.getElementById('editModal').classList.add('open'); }, 10);
+        }
+        function closeEditModal(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('editModal').classList.remove('open');
+            setTimeout(() => { document.getElementById('editModalOverlay').style.display = 'none'; }, 300);
+        }
 
         const commonOptions = {
             responsive: true,
@@ -254,10 +317,7 @@
                     hoverOffset: 4
                 }]
             },
-            options: {
-                ...commonOptions,
-                cutout: '65%',
-            }
+            options: { ...commonOptions, cutout: '65%' }
         });
 
         const searchInput = document.getElementById('searchInput');
@@ -267,13 +327,11 @@
         const empId = "<?php echo $id; ?>";
 
         function changePage(page) {
-            const query = searchInput.value;
-            fetchData(query, page);
+            fetchData(searchInput.value, page);
         }
 
         function fetchData(query, page) {
             exportBtn.href = `index.php?action=export_employee&id=${empId}&search=${encodeURIComponent(query)}`;
-            
             fetch(`index.php?action=employee_history_search&id=${empId}&ajax_search=${encodeURIComponent(query)}&page=${page}`)
                 .then(response => response.json())
                 .then(data => {
@@ -293,11 +351,7 @@
             };
         }
 
-        const performSearch = debounce(function() {
-            fetchData(searchInput.value, 1);
-        }, 300);
-
-        searchInput.addEventListener('input', performSearch);
+        searchInput.addEventListener('input', debounce(function() { fetchData(this.value, 1); }, 300));
     </script>
 </body>
 </html>

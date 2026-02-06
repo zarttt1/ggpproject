@@ -384,5 +384,33 @@ class EmployeeController {
         header("Location: index.php?action=employees");
         exit;
     }
+
+    public function updateEmployee() {
+        $this->checkAuth();
+        if (($_SESSION['role'] ?? '') !== 'admin') {
+            die("Access Denied: Admin only.");
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = $_POST['id_karyawan'] ?? null;
+            $name = trim($_POST['nama_karyawan'] ?? '');
+            $index = trim($_POST['index_karyawan'] ?? '');
+
+            if ($id && $name && $index) {
+                try {
+                    $this->empModel->updateEmployee($id, $name, $index);
+                    header("Location: index.php?action=employee_history&id=" . $id);
+                    exit;
+                } catch (Exception $e) {
+                    die("Error updating employee: " . $e->getMessage());
+                }
+            } else {
+                die("Invalid input data.");
+            }
+        }
+        
+        header("Location: index.php?action=employees");
+        exit;
+    }
 }
 ?>
